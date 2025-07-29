@@ -1,0 +1,28 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+
+{
+"rules": {
+"context_initialization": {
+"description": "세션 시작 시 참조할 문서",
+"steps": [
+"항상 `project.md`, `tech.md`를 확인",
+"하나의 코드가 작업되면 요약하여 Github에 Commit",
+"Always respond in 한국어",
+"Always use context7 MCP"
+]
+},
+"code_changes": [
+"변경 전에 관련 코드를 검토",
+"기존 기능을 유지하며 수정",
+"타입 안정성을 유지할 것"
+],
+"safety_requirements": [
+"타입 안정성을 절대 손상시키지 않음",
+"적절한 오류 처리를 유지",
+]
+}
+}
