@@ -21,12 +21,23 @@ export async function POST(req: NextRequest) {
       responseFields,
       project,
       user,
+      mockData, // 사용자가 지정한 값들
     } = await req.json();
 
-    // 응답 필드를 객체로 변환
+    // 응답 필드를 객체로 변환 (사용자가 지정한 값이 있으면 그 값을 사용, 없으면 타입 사용)
     const responseObject = responseFields.reduce(
-      (acc: Record<string, string>, field: Field) => {
-        acc[field.name] = field.type;
+      (acc: Record<string, any>, field: Field) => {
+        if (
+          mockData &&
+          mockData[field.name] &&
+          mockData[field.name].trim() !== ""
+        ) {
+          // 사용자가 지정한 값이 있으면 그 값을 사용
+          acc[field.name] = mockData[field.name];
+        } else {
+          // 값이 없으면 타입에 따라 랜덤 생성 (기존 방식)
+          acc[field.name] = field.type;
+        }
         return acc;
       },
       {}

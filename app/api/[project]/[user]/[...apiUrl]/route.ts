@@ -113,7 +113,12 @@ function generateMockData(schema: any): any {
   if (typeof schema === "object" && schema !== null) {
     const result: any = {};
     for (const [key, value] of Object.entries(schema)) {
-      result[key] = generateMockData(value);
+      // 사용자가 지정한 값이 문자열이고 타입이 아닌 경우 그 값을 그대로 사용
+      if (typeof value === "string" && !isTypeString(value)) {
+        result[key] = value;
+      } else {
+        result[key] = generateMockData(value);
+      }
     }
     return result;
   }
@@ -139,4 +144,19 @@ function generateMockData(schema: any): any {
     default:
       return faker.lorem.word();
   }
+}
+
+// 타입 문자열인지 확인하는 헬퍼 함수
+function isTypeString(value: string): boolean {
+  const typeStrings = [
+    "string",
+    "number",
+    "boolean",
+    "email",
+    "phone",
+    "name",
+    "address",
+    "date",
+  ];
+  return typeStrings.includes(value);
 }
