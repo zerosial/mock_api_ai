@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// API 템플릿 모델 - AI가 생성한 API 스펙과 코드를 저장
+model Template {
+  id            Int      @id @default(autoincrement())
+  project       String   // 프로젝트명
+  user          String   // 사용자명
+  apiUrl        String   // API URL 경로
+  method        String   // HTTP 메서드 (GET, POST, PUT, DELETE)
+  apiName       String   // API 이름
+  requestSpec   Json?    // 요청 스펙 (OpenAPI 형식)
+  responseSpec  Json?    // 응답 스펙 (OpenAPI 형식)
+  generatedCode String?  // 생성된 코드
+  mockData      Json?    // Mock 데이터
+  isActive      Boolean  @default(true) // 활성화 여부
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // API 호출 기록과의 관계
+  apiLogs ApiLog[]
+
+  @@unique([project, user, apiUrl, method])
+  @@map("templates")
+}
+
+// API 호출 기록 모델 - 생성된 API의 호출 로그를 저장
+model ApiLog {
+  id        Int      @id @default(autoincrement())
+  templateId Int     // Template 테이블의 외래키
+  requestBody Json?  // 요청 본문
+  responseBody Json? // 응답 본문
+  statusCode Int     // HTTP 상태 코드
+  responseTime Int   // 응답 시간 (ms)
+  userAgent String?  // 사용자 에이전트
+  ipAddress String?  // IP 주소
+  createdAt DateTime @default(now())
+
+  // Template과의 관계
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("api_logs")
+}
