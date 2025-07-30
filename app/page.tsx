@@ -19,6 +19,7 @@ interface Template {
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -26,14 +27,27 @@ export default function Home() {
 
   const fetchTemplates = async () => {
     try {
+      setLoading(true);
+      setError(null);
+
       const response = await fetch("/api/templates");
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       setTemplates(data);
     } catch (error) {
       console.error("템플릿 조회 오류:", error);
+      setError("템플릿을 불러오는 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const retryFetch = () => {
+    fetchTemplates();
   };
 
   return (
@@ -59,6 +73,40 @@ export default function Home() {
           </Link>
         </div>
 
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">오류</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={retryFetch}
+                    className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-red-700 bg-red-100 hover:bg-red-200"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 템플릿 목록 */}
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
           <div className="px-4 py-5 sm:px-6">
@@ -72,17 +120,40 @@ export default function Home() {
 
           {loading ? (
             <div className="px-4 py-5 sm:px-6">
-              <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="animate-pulse space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center space-x-4">
+                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    </div>
+                    <div className="h-4 bg-gray-200 rounded w-20"></div>
+                  </div>
+                ))}
               </div>
             </div>
           ) : templates.length === 0 ? (
             <div className="px-4 py-5 sm:px-6 text-center">
-              <p className="text-gray-500">아직 생성된 API가 없습니다.</p>
+              <div className="text-gray-400 mb-4">
+                <svg
+                  className="mx-auto h-12 w-12"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+              </div>
+              <p className="text-gray-500 mb-4">아직 생성된 API가 없습니다.</p>
               <Link
                 href="/create"
-                className="mt-2 inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
+                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
               >
                 첫 번째 API 생성하기
               </Link>

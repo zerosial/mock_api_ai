@@ -13,6 +13,7 @@ interface Field {
 export default function CreatePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     project: "",
     user: "",
@@ -62,9 +63,49 @@ export default function CreatePage() {
     }));
   };
 
+  const validateForm = () => {
+    if (!formData.project.trim()) {
+      setError("프로젝트명을 입력해주세요.");
+      return false;
+    }
+    if (!formData.user.trim()) {
+      setError("사용자명을 입력해주세요.");
+      return false;
+    }
+    if (!formData.apiName.trim()) {
+      setError("API 이름을 입력해주세요.");
+      return false;
+    }
+    if (!formData.url.trim()) {
+      setError("API URL을 입력해주세요.");
+      return false;
+    }
+    if (formData.responseFields.length === 0) {
+      setError("응답 필드를 최소 하나 이상 추가해주세요.");
+      return false;
+    }
+
+    // 응답 필드 이름 중복 확인
+    const responseFieldNames = formData.responseFields.map((f) => f.name);
+    const uniqueNames = new Set(responseFieldNames);
+    if (responseFieldNames.length !== uniqueNames.size) {
+      setError("응답 필드 이름이 중복됩니다.");
+      return false;
+    }
+
+    setError(null);
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
+    setError(null);
 
     try {
       const response = await fetch("/api/generate", {
@@ -75,14 +116,16 @@ export default function CreatePage() {
         body: JSON.stringify(formData),
       });
 
-      if (response.ok) {
+      const result = await response.json();
+
+      if (response.ok && result.success) {
         router.push("/");
       } else {
-        alert("API 생성에 실패했습니다.");
+        setError(result.error || "API 생성에 실패했습니다.");
       }
     } catch (error) {
       console.error("API 생성 오류:", error);
-      alert("API 생성 중 오류가 발생했습니다.");
+      setError("API 생성 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
@@ -95,6 +138,31 @@ export default function CreatePage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">새 API 생성</h1>
           <p className="text-gray-600">AI를 활용하여 Mock API를 생성하세요</p>
         </div>
+
+        {/* 에러 메시지 */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">오류</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* 기본 정보 */}
@@ -358,7 +426,33 @@ export default function CreatePage() {
               disabled={loading}
               className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
-              {loading ? "생성 중..." : "API 생성"}
+              {loading ? (
+                <div className="flex items-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  생성 중...
+                </div>
+              ) : (
+                "API 생성"
+              )}
             </button>
           </div>
         </form>

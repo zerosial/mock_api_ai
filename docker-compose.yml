@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # PostgreSQL 데이터베이스
   db:
     image: postgres:15-alpine
     container_name: mock-api-ai-db
@@ -13,7 +14,15 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    command: >
+      postgres
+      -c shared_buffers=256MB
+      -c max_connections=100
+      -c effective_cache_size=1GB
 
+  # Next.js 애플리케이션
   app:
     build: .
     container_name: mock-api-ai-app
@@ -24,10 +33,17 @@ services:
       DATABASE_URL: "postgresql://postgres:postgres@db:5432/mock_api_ai"
       OPENAI_API_KEY: "${OPENAI_API_KEY}"
       NODE_ENV: production
+      NODE_OPTIONS: "--max-old-space-size=2048"
     ports:
       - "3000:3000"
     volumes:
       - ./prisma:/app/prisma
+    networks:
+      - app-network
 
 volumes:
   db_data:
+
+networks:
+  app-network:
+    driver: bridge

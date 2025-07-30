@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-const prisma = new PrismaClient();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+interface Field {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,6 +22,15 @@ export async function POST(req: NextRequest) {
       project,
       user,
     } = await req.json();
+
+    // 응답 필드를 객체로 변환
+    const responseObject = responseFields.reduce(
+      (acc: Record<string, string>, field: Field) => {
+        acc[field.name] = field.type;
+        return acc;
+      },
+      {}
+    );
 
     // OpenAI API를 사용하여 OpenAPI 스펙 생성
     const prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
@@ -69,7 +84,7 @@ API 이름: ${apiName}
                     "application/json": {
                       schema: {
                         type: "object",
-                        properties: responseFields,
+                        properties: responseObject,
                       },
                     },
                   },
@@ -92,7 +107,7 @@ API 이름: ${apiName}
         requestSpec: requestFields,
         responseSpec: responseFields,
         generatedCode: JSON.stringify(specJson),
-        mockData: responseFields,
+        mockData: responseObject,
       },
     });
 

@@ -1,38 +1,49 @@
-# 1단계: 의존성 설치 및 빌드
-FROM node:20-alpine AS builder
+# Dockerfile
+FROM node:18-alpine AS base
+
+# 의존성 설치 단계
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# pnpm 설정
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# package.json과 package-lock.json 복사
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production
 
-# 의존성 파일 복사 및 설치
-COPY package*.json ./
-RUN npm install --frozen-lockfile
-
-# 소스 코드 복사
+# 빌드 단계
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Prisma 클라이언트 생성 및 빌드
+# Prisma 클라이언트 생성
 RUN npx prisma generate
+
+# Next.js 빌드
 RUN npm run build
 
-# 2단계: 경량 실행 이미지
-FROM node:20-alpine AS runner
+# 프로덕션 단계
+FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
+ENV NODE_ENV production
 
-# 필요한 파일들 복사
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# 생성된 Prisma 클라이언트 복사
+COPY --from=builder /app/lib/generated ./lib/generated
+
+# Next.js 빌드 결과 복사
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# 런타임 의존성 설치
-RUN apk add --no-cache openssl
+USER nextjs
 
 EXPOSE 3000
+
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
 
 CMD ["node", "server.js"] 
