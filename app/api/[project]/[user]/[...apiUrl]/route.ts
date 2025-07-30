@@ -4,30 +4,38 @@ import { faker } from "@faker-js/faker";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { project: string; user: string; apiUrl: string[] } }
+  {
+    params,
+  }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, params, "GET");
+  return handleRequest(req, await params, "GET");
 }
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { project: string; user: string; apiUrl: string[] } }
+  {
+    params,
+  }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, params, "POST");
+  return handleRequest(req, await params, "POST");
 }
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { project: string; user: string; apiUrl: string[] } }
+  {
+    params,
+  }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, params, "PUT");
+  return handleRequest(req, await params, "PUT");
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { project: string; user: string; apiUrl: string[] } }
+  {
+    params,
+  }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, params, "DELETE");
+  return handleRequest(req, await params, "DELETE");
 }
 
 async function handleRequest(
@@ -82,7 +90,7 @@ async function handleRequest(
         statusCode: 200,
         responseTime,
         userAgent: req.headers.get("user-agent") || null,
-        ipAddress: req.headers.get("x-forwarded-for") || req.ip || null,
+        ipAddress: req.headers.get("x-forwarded-for") || null,
       },
     });
 
