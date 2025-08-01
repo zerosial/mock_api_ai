@@ -245,31 +245,31 @@ export default function CreateCustomPage() {
         const fieldValue = field.value || "";
 
         if (fieldValue.trim() === "") {
-          // 값이 없으면 타입에 따라 랜덤 생성
-          return field.type;
+          // 값이 없으면 null 반환 (나중에 제거됨)
+          return null;
         }
 
         // 타입에 따라 값을 파싱
         switch (field.type) {
           case "number":
-            return isNaN(Number(fieldValue)) ? field.type : Number(fieldValue);
+            return isNaN(Number(fieldValue)) ? null : Number(fieldValue);
           case "boolean":
             return fieldValue.toLowerCase() === "true"
               ? true
               : fieldValue.toLowerCase() === "false"
               ? false
-              : field.type;
+              : null;
           case "array":
             try {
               return JSON.parse(fieldValue);
             } catch {
-              return field.type;
+              return null;
             }
           case "object":
             try {
               return JSON.parse(fieldValue);
             } catch {
-              return field.type;
+              return null;
             }
           default:
             return fieldValue;
@@ -298,6 +298,33 @@ export default function CreateCustomPage() {
           mockData[field.name] = value;
         }
       });
+
+      // 빈 값이나 null인 경우 제거
+      Object.keys(mockData).forEach((key) => {
+        if (
+          mockData[key] === "" ||
+          mockData[key] === null ||
+          mockData[key] === undefined
+        ) {
+          delete mockData[key];
+        }
+      });
+
+      // 중첩 객체에서도 빈 값 제거
+      const cleanNestedObjects = (obj: any) => {
+        Object.keys(obj).forEach((key) => {
+          if (obj[key] && typeof obj[key] === "object") {
+            cleanNestedObjects(obj[key]);
+            if (Object.keys(obj[key]).length === 0) {
+              delete obj[key];
+            }
+          }
+        });
+      };
+      cleanNestedObjects(mockData);
+
+      // 디버깅을 위한 로그
+      console.log("Generated mockData:", mockData);
 
       const response = await fetch("/api/generate", {
         method: "POST",

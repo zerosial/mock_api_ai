@@ -25,21 +25,36 @@ export async function POST(req: NextRequest) {
     } = await req.json();
 
     // 응답 필드를 객체로 변환 (사용자가 지정한 값이 있으면 그 값을 사용, 없으면 타입 사용)
-    const responseObject = responseFields.reduce(
-      (acc: Record<string, any>, field: Field) => {
+    const responseObject: Record<string, any> = {};
+
+    // 디버깅을 위한 로그
+    console.log("Received mockData:", mockData);
+    console.log("Response fields:", responseFields);
+
+    // mockData가 이미 중첩 구조로 되어 있다면 그대로 사용
+    if (
+      mockData &&
+      typeof mockData === "object" &&
+      Object.keys(mockData).length > 0
+    ) {
+      // mockData가 비어있지 않으면 그대로 사용
+      Object.assign(responseObject, mockData);
+    } else {
+      // 필드 기반으로 생성하는 경우 (기존 방식)
+      responseFields.forEach((field: Field) => {
         const mockValue = mockData && mockData[field.name];
 
         if (mockValue !== undefined && mockValue !== null) {
           // 사용자가 지정한 값이 있으면 그 값을 사용
-          acc[field.name] = mockValue;
+          responseObject[field.name] = mockValue;
         } else {
           // 값이 없으면 타입에 따라 랜덤 생성 (기존 방식)
-          acc[field.name] = field.type;
+          responseObject[field.name] = field.type;
         }
-        return acc;
-      },
-      {}
-    );
+      });
+    }
+
+    console.log("Final responseObject:", responseObject);
 
     // OpenAI API를 사용하여 OpenAPI 스펙 생성
     const prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
