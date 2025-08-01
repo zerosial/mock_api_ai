@@ -193,7 +193,7 @@ export default function CreatePage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-2">새 API 생성</h1>
           <p className="text-gray-600">
             AI를 활용하여 Mock API를 생성하세요. 기본 정보만 입력하면 AI가
-            자동으로 필드를 생성합니다.
+            자동으로 필드를 생성하고, 응답 값은 랜덤 데이터로 생성됩니다.
           </p>
         </div>
 

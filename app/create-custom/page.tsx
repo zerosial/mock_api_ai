@@ -8,7 +8,7 @@ interface Field {
   type: string;
   required: boolean;
   description: string;
-  value?: string; // 사용자가 지정한 값
+  value: string; // 사용자가 지정한 값 (항상 존재)
 }
 
 interface GeneratedFields {
@@ -45,7 +45,7 @@ export default function CreateCustomPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-fields", {
+      const response = await fetch("/api/generate-fields-with-values", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,18 +61,8 @@ export default function CreateCustomPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // AI 생성된 필드에 value 필드 추가
-        const fieldsWithValues = {
-          requestFields: result.fields.requestFields.map((field: Field) => ({
-            ...field,
-            value: "",
-          })),
-          responseFields: result.fields.responseFields.map((field: Field) => ({
-            ...field,
-            value: "",
-          })),
-        };
-        setGeneratedFields(fieldsWithValues);
+        // AI가 생성한 필드와 값들을 그대로 사용
+        setGeneratedFields(result.fields);
         setAiGenerated(result.aiGenerated);
       } else {
         setError(result.error || "필드 생성에 실패했습니다.");
@@ -173,11 +163,12 @@ export default function CreateCustomPage() {
 
     try {
       // 응답 필드에서 사용자가 지정한 값들을 mockData로 변환
-      const mockData: any = {};
+      const mockData: Record<string, string> = {};
       generatedFields.responseFields.forEach((field) => {
-        if (field.value && field.value.trim() !== "") {
+        const fieldValue = String(field.value || "");
+        if (fieldValue.trim() !== "") {
           // 사용자가 지정한 값이 있으면 그 값을 사용
-          mockData[field.name] = field.value;
+          mockData[field.name] = fieldValue;
         } else {
           // 값이 없으면 타입에 따라 랜덤 생성 (기존 방식)
           mockData[field.name] = field.type;
@@ -220,8 +211,9 @@ export default function CreateCustomPage() {
             커스텀 API 생성
           </h1>
           <p className="text-gray-600">
-            AI를 활용하여 Mock API를 생성하되, 응답 값까지 직접 지정할 수
-            있습니다. 필드 값이 비어있으면 랜덤 데이터가 생성됩니다.
+            AI를 활용하여 Mock API를 생성하되, AI가 필드와 실제 JSON 값까지
+            자동으로 생성합니다. 생성된 값은 수정 가능하며, 비워두면 랜덤
+            데이터가 생성됩니다.
           </p>
         </div>
 
@@ -445,7 +437,7 @@ export default function CreateCustomPage() {
                     </h3>
                     <div className="mt-2 text-sm text-blue-700">
                       {aiGenerated
-                        ? "AI가 API 설명을 분석하여 요청/응답 필드를 자동으로 생성했습니다. 응답 필드에 원하는 값을 직접 입력하거나 비워두면 랜덤 데이터가 생성됩니다."
+                        ? "AI가 API 설명을 분석하여 요청/응답 필드와 실제 JSON 값까지 자동으로 생성했습니다. 생성된 값은 수정 가능하며, 비워두면 랜덤 데이터가 생성됩니다."
                         : "OpenAI API 키가 설정되지 않아 기본 필드가 생성되었습니다. .env 파일에 API 키를 설정하면 AI 기능을 사용할 수 있습니다."}
                     </div>
                   </div>
@@ -558,9 +550,9 @@ export default function CreateCustomPage() {
                   </div>
                   <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm text-yellow-800">
-                      💡 <strong>응답 값 설정:</strong> 각 필드의 "응답 값"에
-                      원하는 값을 입력하세요. 비워두면 랜덤 데이터가 생성됩니다.
-                      JSON 형태로도 입력 가능합니다.
+                      💡 <strong>응답 값 설정:</strong> AI가 생성한 값이
+                      자동으로 입력됩니다. 필요에 따라 값을 수정하거나 비워두면
+                      랜덤 데이터가 생성됩니다. JSON 형태로도 입력 가능합니다.
                     </p>
                   </div>
                   {generatedFields.responseFields.map((field, index) => (
