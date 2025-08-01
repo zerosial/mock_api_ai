@@ -77,6 +77,12 @@ export default function Home() {
           >
             커스텀 API 생성 (AI 값 생성)
           </Link>
+          <Link
+            href="/create-json"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+          >
+            JSON으로 API 생성
+          </Link>
         </div>
 
         {/* 에러 메시지 */}
