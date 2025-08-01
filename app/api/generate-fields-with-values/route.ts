@@ -83,7 +83,7 @@ API 설명: ${description}
   "requestFields": [
     {
       "name": "필드명",
-      "type": "string|number|boolean|email|phone|name|address|date",
+      "type": "string|number|boolean|email|phone|name|address|date|array|object",
       "required": true/false,
       "description": "필드 설명",
       "value": "실제 예시 값"
@@ -92,7 +92,7 @@ API 설명: ${description}
   "responseFields": [
     {
       "name": "필드명", 
-      "type": "string|number|boolean|email|phone|name|address|date",
+      "type": "string|number|boolean|email|phone|name|address|date|array|object",
       "required": true/false,
       "description": "필드 설명",
       "value": "실제 예시 값"
@@ -109,6 +109,8 @@ API 설명: ${description}
 - date 필드: "2024-01-15" 등의 날짜
 - boolean 필드: true/false
 - address 필드: "서울시 강남구..." 등의 실제 주소
+- array 필드: ["item1", "item2"] 또는 [1, 2, 3] 등의 배열
+- object 필드: {"key": "value"} 등의 객체
 
 JSON 형식으로만 응답해주세요.`;
 

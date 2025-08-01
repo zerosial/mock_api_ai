@@ -34,6 +34,8 @@ export default function CreateCustomPage() {
     requestFields: [],
     responseFields: [],
   });
+  const [jsonInput, setJsonInput] = useState<string>("");
+  const [showJsonInput, setShowJsonInput] = useState<boolean>(false);
 
   const generateFieldsWithAI = async () => {
     if (!formData.apiName.trim() || !formData.description.trim()) {
@@ -115,6 +117,80 @@ export default function CreateCustomPage() {
     }));
   };
 
+  // JSON 입력을 파싱하여 필드로 변환하는 함수
+  const parseJsonToFields = () => {
+    try {
+      const jsonData = JSON.parse(jsonInput);
+      const fields: Field[] = [];
+
+      const processValue = (key: string, value: any, parentKey = ""): Field => {
+        const fullKey = parentKey ? `${parentKey}.${key}` : key;
+
+        let type = "string";
+        let stringValue = "";
+
+        if (typeof value === "number") {
+          type = "number";
+          stringValue = value.toString();
+        } else if (typeof value === "boolean") {
+          type = "boolean";
+          stringValue = value.toString();
+        } else if (Array.isArray(value)) {
+          type = "array";
+          stringValue = JSON.stringify(value);
+        } else if (typeof value === "object" && value !== null) {
+          type = "object";
+          stringValue = JSON.stringify(value);
+        } else {
+          type = "string";
+          stringValue = String(value);
+        }
+
+        return {
+          name: fullKey,
+          type,
+          required: true,
+          description: `${fullKey} 필드`,
+          value: stringValue,
+        };
+      };
+
+      const extractFields = (obj: any, parentKey = ""): Field[] => {
+        const fields: Field[] = [];
+
+        for (const [key, value] of Object.entries(obj)) {
+          if (
+            typeof value === "object" &&
+            value !== null &&
+            !Array.isArray(value)
+          ) {
+            // 중첩 객체인 경우 재귀적으로 처리
+            fields.push(
+              ...extractFields(value, parentKey ? `${parentKey}.${key}` : key)
+            );
+          } else {
+            // 기본 값인 경우 필드로 추가
+            fields.push(processValue(key, value, parentKey));
+          }
+        }
+
+        return fields;
+      };
+
+      const responseFields = extractFields(jsonData);
+
+      setGeneratedFields((prev) => ({
+        ...prev,
+        responseFields,
+      }));
+
+      setShowJsonInput(false);
+      setJsonInput("");
+    } catch (error) {
+      setError("올바른 JSON 형식이 아닙니다.");
+    }
+  };
+
   const validateForm = () => {
     if (!formData.project.trim()) {
       setError("프로젝트명을 입력해주세요.");
@@ -163,15 +239,63 @@ export default function CreateCustomPage() {
 
     try {
       // 응답 필드에서 사용자가 지정한 값들을 mockData로 변환
-      const mockData: Record<string, string> = {};
+      const mockData: Record<string, any> = {};
+
+      const processFieldValue = (field: Field): any => {
+        const fieldValue = field.value || "";
+
+        if (fieldValue.trim() === "") {
+          // 값이 없으면 타입에 따라 랜덤 생성
+          return field.type;
+        }
+
+        // 타입에 따라 값을 파싱
+        switch (field.type) {
+          case "number":
+            return isNaN(Number(fieldValue)) ? field.type : Number(fieldValue);
+          case "boolean":
+            return fieldValue.toLowerCase() === "true"
+              ? true
+              : fieldValue.toLowerCase() === "false"
+              ? false
+              : field.type;
+          case "array":
+            try {
+              return JSON.parse(fieldValue);
+            } catch {
+              return field.type;
+            }
+          case "object":
+            try {
+              return JSON.parse(fieldValue);
+            } catch {
+              return field.type;
+            }
+          default:
+            return fieldValue;
+        }
+      };
+
+      // 중첩 객체 구조를 생성
       generatedFields.responseFields.forEach((field) => {
-        const fieldValue = String(field.value || "");
-        if (fieldValue.trim() !== "") {
-          // 사용자가 지정한 값이 있으면 그 값을 사용
-          mockData[field.name] = fieldValue;
+        const value = processFieldValue(field);
+
+        if (field.name.includes(".")) {
+          // 중첩 필드인 경우 (예: profile.age)
+          const keys = field.name.split(".");
+          let current = mockData;
+
+          for (let i = 0; i < keys.length - 1; i++) {
+            if (!current[keys[i]]) {
+              current[keys[i]] = {};
+            }
+            current = current[keys[i]];
+          }
+
+          current[keys[keys.length - 1]] = value;
         } else {
-          // 값이 없으면 타입에 따라 랜덤 생성 (기존 방식)
-          mockData[field.name] = field.type;
+          // 최상위 필드인 경우
+          mockData[field.name] = value;
         }
       });
 
@@ -540,13 +664,22 @@ export default function CreateCustomPage() {
                     <h3 className="text-lg font-medium text-gray-900">
                       응답 필드 {aiGenerated && "(AI 생성)"}
                     </h3>
-                    <button
-                      type="button"
-                      onClick={() => addField("response")}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
-                    >
-                      필드 추가
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowJsonInput(!showJsonInput)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-green-600 bg-green-100 hover:bg-green-200"
+                      >
+                        JSON으로 입력
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addField("response")}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
+                      >
+                        필드 추가
+                      </button>
+                    </div>
                   </div>
                   <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                     <p className="text-sm text-yellow-800">
@@ -555,6 +688,44 @@ export default function CreateCustomPage() {
                       랜덤 데이터가 생성됩니다. JSON 형태로도 입력 가능합니다.
                     </p>
                   </div>
+
+                  {/* JSON 입력 UI */}
+                  {showJsonInput && (
+                    <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">
+                        JSON 응답 데이터 입력
+                      </h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        복잡한 JSON 구조를 입력하면 자동으로 필드로 변환됩니다.
+                      </p>
+                      <textarea
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        placeholder='{"id": 1023, "name": "김지은", "profile": {"age": 33, "gender": "female"}}'
+                        rows={6}
+                        className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                      <div className="mt-3 flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={parseJsonToFields}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                        >
+                          JSON 파싱
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowJsonInput(false);
+                            setJsonInput("");
+                          }}
+                          className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {generatedFields.responseFields.map((field, index) => (
                     <div
                       key={index}
@@ -588,6 +759,8 @@ export default function CreateCustomPage() {
                         <option value="name">Name</option>
                         <option value="address">Address</option>
                         <option value="date">Date</option>
+                        <option value="array">Array</option>
+                        <option value="object">Object</option>
                       </select>
                       <input
                         type="text"
