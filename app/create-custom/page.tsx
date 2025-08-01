@@ -146,6 +146,20 @@ export default function CreateCustomPage() {
           stringValue = String(value);
         }
 
+        // 디버깅을 위한 로그
+        console.log(
+          `Processing field: ${fullKey}, type: ${type}, value: ${stringValue}`
+        );
+
+        // 값이 제대로 저장되었는지 확인
+        if (
+          stringValue === "" ||
+          stringValue === "undefined" ||
+          stringValue === "null"
+        ) {
+          console.warn(`Warning: Empty value for field ${fullKey}`);
+        }
+
         return {
           name: fullKey,
           type,
@@ -178,6 +192,14 @@ export default function CreateCustomPage() {
       };
 
       const responseFields = extractFields(jsonData);
+
+      // 디버깅을 위한 로그
+      console.log("Generated fields from JSON:", responseFields);
+      responseFields.forEach((field) => {
+        console.log(
+          `Field: ${field.name}, Type: ${field.type}, Value: "${field.value}"`
+        );
+      });
 
       setGeneratedFields((prev) => ({
         ...prev,
@@ -261,13 +283,17 @@ export default function CreateCustomPage() {
               : null;
           case "array":
             try {
-              return JSON.parse(fieldValue);
+              const parsed = JSON.parse(fieldValue);
+              return Array.isArray(parsed) ? parsed : null;
             } catch {
               return null;
             }
           case "object":
             try {
-              return JSON.parse(fieldValue);
+              const parsed = JSON.parse(fieldValue);
+              return typeof parsed === "object" && parsed !== null
+                ? parsed
+                : null;
             } catch {
               return null;
             }
@@ -279,6 +305,17 @@ export default function CreateCustomPage() {
       // 중첩 객체 구조를 생성
       generatedFields.responseFields.forEach((field) => {
         const value = processFieldValue(field);
+
+        console.log(
+          `Processing field: ${field.name}, type: ${field.type}, original value: "${field.value}", processed value:`,
+          value
+        );
+
+        if (value === null) {
+          // 값이 null이면 건너뛰기
+          console.log(`Skipping field: ${field.name} (null value)`);
+          return;
+        }
 
         if (field.name.includes(".")) {
           // 중첩 필드인 경우 (예: profile.age)
@@ -293,9 +330,11 @@ export default function CreateCustomPage() {
           }
 
           current[keys[keys.length - 1]] = value;
+          console.log(`Set nested field: ${field.name} =`, value);
         } else {
           // 최상위 필드인 경우
           mockData[field.name] = value;
+          console.log(`Set top-level field: ${field.name} =`, value);
         }
       });
 
