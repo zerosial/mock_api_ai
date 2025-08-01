@@ -8,6 +8,7 @@ interface Field {
   type: string;
   required: boolean;
   description: string;
+  value: string; // 사용자가 지정한 값 (항상 존재)
 }
 
 interface GeneratedFields {
@@ -15,7 +16,7 @@ interface GeneratedFields {
   responseFields: Field[];
 }
 
-export default function CreatePage() {
+export default function CreateCustomPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -33,6 +34,8 @@ export default function CreatePage() {
     requestFields: [],
     responseFields: [],
   });
+  const [jsonInput, setJsonInput] = useState<string>("");
+  const [showJsonInput, setShowJsonInput] = useState<boolean>(false);
 
   const generateFieldsWithAI = async () => {
     if (!formData.apiName.trim() || !formData.description.trim()) {
@@ -44,7 +47,7 @@ export default function CreatePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-fields", {
+      const response = await fetch("/api/generate-fields-with-values", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -60,6 +63,7 @@ export default function CreatePage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // AI가 생성한 필드와 값들을 그대로 사용
         setGeneratedFields(result.fields);
         setAiGenerated(result.aiGenerated);
       } else {
@@ -101,6 +105,7 @@ export default function CreatePage() {
       type: "string",
       required: false,
       description: "",
+      value: "",
     };
 
     setGeneratedFields((prev) => ({
@@ -110,6 +115,102 @@ export default function CreatePage() {
         newField,
       ],
     }));
+  };
+
+  // JSON 입력을 파싱하여 필드로 변환하는 함수
+  const parseJsonToFields = () => {
+    try {
+      const jsonData = JSON.parse(jsonInput);
+      const fields: Field[] = [];
+
+      const processValue = (key: string, value: any, parentKey = ""): Field => {
+        const fullKey = parentKey ? `${parentKey}.${key}` : key;
+
+        let type = "string";
+        let stringValue = "";
+
+        if (typeof value === "number") {
+          type = "number";
+          stringValue = value.toString();
+        } else if (typeof value === "boolean") {
+          type = "boolean";
+          stringValue = value.toString();
+        } else if (Array.isArray(value)) {
+          type = "array";
+          stringValue = JSON.stringify(value);
+        } else if (typeof value === "object" && value !== null) {
+          type = "object";
+          stringValue = JSON.stringify(value);
+        } else {
+          type = "string";
+          stringValue = String(value);
+        }
+
+        // 디버깅을 위한 로그
+        console.log(
+          `Processing field: ${fullKey}, type: ${type}, value: ${stringValue}`
+        );
+
+        // 값이 제대로 저장되었는지 확인
+        if (
+          stringValue === "" ||
+          stringValue === "undefined" ||
+          stringValue === "null"
+        ) {
+          console.warn(`Warning: Empty value for field ${fullKey}`);
+        }
+
+        return {
+          name: fullKey,
+          type,
+          required: true,
+          description: `${fullKey} 필드`,
+          value: stringValue,
+        };
+      };
+
+      const extractFields = (obj: any, parentKey = ""): Field[] => {
+        const fields: Field[] = [];
+
+        for (const [key, value] of Object.entries(obj)) {
+          if (
+            typeof value === "object" &&
+            value !== null &&
+            !Array.isArray(value)
+          ) {
+            // 중첩 객체인 경우 재귀적으로 처리
+            fields.push(
+              ...extractFields(value, parentKey ? `${parentKey}.${key}` : key)
+            );
+          } else {
+            // 기본 값인 경우 필드로 추가
+            fields.push(processValue(key, value, parentKey));
+          }
+        }
+
+        return fields;
+      };
+
+      const responseFields = extractFields(jsonData);
+
+      // 디버깅을 위한 로그
+      console.log("Generated fields from JSON:", responseFields);
+      responseFields.forEach((field) => {
+        console.log(
+          `Field: ${field.name}, Type: ${field.type}, Value: "${field.value}"`
+        );
+      });
+
+      setGeneratedFields((prev) => ({
+        ...prev,
+        responseFields,
+      }));
+
+      setShowJsonInput(false);
+      setJsonInput("");
+    } catch (error) {
+      setError("올바른 JSON 형식이 아닙니다.");
+    }
   };
 
   const validateForm = () => {
@@ -159,6 +260,111 @@ export default function CreatePage() {
     setError(null);
 
     try {
+      // 응답 필드에서 사용자가 지정한 값들을 mockData로 변환
+      const mockData: Record<string, any> = {};
+
+      const processFieldValue = (field: Field): any => {
+        const fieldValue = field.value || "";
+
+        if (fieldValue.trim() === "") {
+          // 값이 없으면 null 반환 (나중에 제거됨)
+          return null;
+        }
+
+        // 타입에 따라 값을 파싱
+        switch (field.type) {
+          case "number":
+            return isNaN(Number(fieldValue)) ? null : Number(fieldValue);
+          case "boolean":
+            return fieldValue.toLowerCase() === "true"
+              ? true
+              : fieldValue.toLowerCase() === "false"
+              ? false
+              : null;
+          case "array":
+            try {
+              const parsed = JSON.parse(fieldValue);
+              return Array.isArray(parsed) ? parsed : null;
+            } catch {
+              return null;
+            }
+          case "object":
+            try {
+              const parsed = JSON.parse(fieldValue);
+              return typeof parsed === "object" && parsed !== null
+                ? parsed
+                : null;
+            } catch {
+              return null;
+            }
+          default:
+            return fieldValue;
+        }
+      };
+
+      // 중첩 객체 구조를 생성
+      generatedFields.responseFields.forEach((field) => {
+        const value = processFieldValue(field);
+
+        console.log(
+          `Processing field: ${field.name}, type: ${field.type}, original value: "${field.value}", processed value:`,
+          value
+        );
+
+        if (value === null) {
+          // 값이 null이면 건너뛰기
+          console.log(`Skipping field: ${field.name} (null value)`);
+          return;
+        }
+
+        if (field.name.includes(".")) {
+          // 중첩 필드인 경우 (예: profile.age)
+          const keys = field.name.split(".");
+          let current = mockData;
+
+          for (let i = 0; i < keys.length - 1; i++) {
+            if (!current[keys[i]]) {
+              current[keys[i]] = {};
+            }
+            current = current[keys[i]];
+          }
+
+          current[keys[keys.length - 1]] = value;
+          console.log(`Set nested field: ${field.name} =`, value);
+        } else {
+          // 최상위 필드인 경우
+          mockData[field.name] = value;
+          console.log(`Set top-level field: ${field.name} =`, value);
+        }
+      });
+
+      // 빈 값이나 null인 경우 제거
+      Object.keys(mockData).forEach((key) => {
+        if (
+          mockData[key] === "" ||
+          mockData[key] === null ||
+          mockData[key] === undefined
+        ) {
+          delete mockData[key];
+        }
+      });
+
+      // 중첩 객체에서도 빈 값 제거
+      const cleanNestedObjects = (obj: any) => {
+        Object.keys(obj).forEach((key) => {
+          if (obj[key] && typeof obj[key] === "object") {
+            cleanNestedObjects(obj[key]);
+            if (Object.keys(obj[key]).length === 0) {
+              delete obj[key];
+            }
+          }
+        });
+      };
+      cleanNestedObjects(mockData);
+
+      // 디버깅을 위한 로그
+      console.log("Generated mockData:", mockData);
+
       const response = await fetch("/api/generate", {
         method: "POST",
         headers: {
@@ -168,6 +374,7 @@ export default function CreatePage() {
           ...formData,
           requestFields: generatedFields.requestFields,
           responseFields: generatedFields.responseFields,
+          mockData, // 사용자가 지정한 값들을 포함한 mockData 전달
         }),
       });
 
@@ -190,10 +397,13 @@ export default function CreatePage() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">새 API 생성</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            커스텀 API 생성
+          </h1>
           <p className="text-gray-600">
-            AI를 활용하여 Mock API를 생성하세요. 기본 정보만 입력하면 AI가
-            자동으로 필드를 생성하고, 응답 값은 랜덤 데이터로 생성됩니다.
+            AI를 활용하여 Mock API를 생성하되, AI가 필드와 실제 JSON 값까지
+            자동으로 생성합니다. 생성된 값은 수정 가능하며, 비워두면 랜덤
+            데이터가 생성됩니다.
           </p>
         </div>
 
@@ -417,7 +627,7 @@ export default function CreatePage() {
                     </h3>
                     <div className="mt-2 text-sm text-blue-700">
                       {aiGenerated
-                        ? "AI가 API 설명을 분석하여 요청/응답 필드를 자동으로 생성했습니다. 필요에 따라 수정하세요."
+                        ? "AI가 API 설명을 분석하여 요청/응답 필드와 실제 JSON 값까지 자동으로 생성했습니다. 생성된 값은 수정 가능하며, 비워두면 랜덤 데이터가 생성됩니다."
                         : "OpenAI API 키가 설정되지 않아 기본 필드가 생성되었습니다. .env 파일에 API 키를 설정하면 AI 기능을 사용할 수 있습니다."}
                     </div>
                   </div>
@@ -442,7 +652,7 @@ export default function CreatePage() {
                   {generatedFields.requestFields.map((field, index) => (
                     <div
                       key={index}
-                      className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-4"
+                      className="grid grid-cols-1 gap-4 sm:grid-cols-5 mb-4"
                     >
                       <input
                         type="text"
@@ -520,18 +730,72 @@ export default function CreatePage() {
                     <h3 className="text-lg font-medium text-gray-900">
                       응답 필드 {aiGenerated && "(AI 생성)"}
                     </h3>
-                    <button
-                      type="button"
-                      onClick={() => addField("response")}
-                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
-                    >
-                      필드 추가
-                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowJsonInput(!showJsonInput)}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-green-600 bg-green-100 hover:bg-green-200"
+                      >
+                        JSON으로 입력
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => addField("response")}
+                        className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
+                      >
+                        필드 추가
+                      </button>
+                    </div>
                   </div>
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                    <p className="text-sm text-yellow-800">
+                      💡 <strong>응답 값 설정:</strong> AI가 생성한 값이
+                      자동으로 입력됩니다. 필요에 따라 값을 수정하거나 비워두면
+                      랜덤 데이터가 생성됩니다. JSON 형태로도 입력 가능합니다.
+                    </p>
+                  </div>
+
+                  {/* JSON 입력 UI */}
+                  {showJsonInput && (
+                    <div className="mb-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">
+                        JSON 응답 데이터 입력
+                      </h4>
+                      <p className="text-sm text-gray-600 mb-3">
+                        복잡한 JSON 구조를 입력하면 자동으로 필드로 변환됩니다.
+                      </p>
+                      <textarea
+                        value={jsonInput}
+                        onChange={(e) => setJsonInput(e.target.value)}
+                        placeholder='{"id": 1023, "name": "김지은", "profile": {"age": 33, "gender": "female"}}'
+                        rows={6}
+                        className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                      <div className="mt-3 flex space-x-2">
+                        <button
+                          type="button"
+                          onClick={parseJsonToFields}
+                          className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
+                        >
+                          JSON 파싱
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowJsonInput(false);
+                            setJsonInput("");
+                          }}
+                          className="inline-flex items-center px-3 py-1 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {generatedFields.responseFields.map((field, index) => (
                     <div
                       key={index}
-                      className="grid grid-cols-1 gap-4 sm:grid-cols-4 mb-4"
+                      className="grid grid-cols-1 gap-4 sm:grid-cols-5 mb-4"
                     >
                       <input
                         type="text"
@@ -561,6 +825,8 @@ export default function CreatePage() {
                         <option value="name">Name</option>
                         <option value="address">Address</option>
                         <option value="date">Date</option>
+                        <option value="array">Array</option>
+                        <option value="object">Object</option>
                       </select>
                       <input
                         type="text"
@@ -569,6 +835,17 @@ export default function CreatePage() {
                         onChange={(e) =>
                           updateField("response", index, {
                             description: e.target.value,
+                          })
+                        }
+                        className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      />
+                      <input
+                        type="text"
+                        placeholder="응답 값 (비워두면 랜덤)"
+                        value={field.value || ""}
+                        onChange={(e) =>
+                          updateField("response", index, {
+                            value: e.target.value,
                           })
                         }
                         className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"

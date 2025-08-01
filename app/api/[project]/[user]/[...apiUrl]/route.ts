@@ -75,7 +75,9 @@ async function handleRequest(
     // Mock 데이터 생성
     let responseData;
     if (template.mockData) {
+      console.log("Template mockData:", template.mockData);
       responseData = generateMockData(template.mockData as any);
+      console.log("Generated responseData:", responseData);
     } else {
       responseData = { message: "No mock data available" };
     }
@@ -105,15 +107,43 @@ async function handleRequest(
 }
 
 function generateMockData(schema: any): any {
+  // schema가 null이거나 undefined인 경우
+  if (schema === null || schema === undefined) {
+    return null;
+  }
+
+  // 배열인 경우
   if (Array.isArray(schema)) {
-    // 배열인 경우 10개의 항목 생성
+    console.log("Processing array:", schema);
+    // 배열 자체가 mockData인 경우 그대로 반환
+    // 첫 번째 요소가 타입 문자열이 아닌 경우 (예: "string", "number" 등이 아닌 경우)
+    if (schema.length > 0 && !isTypeString(schema[0])) {
+      console.log("Returning array as-is:", schema);
+      return schema;
+    }
+    // 타입 배열인 경우 10개의 항목 생성
+    console.log("Generating array from type:", schema[0]);
     return Array.from({ length: 10 }, () => generateMockData(schema[0]));
   }
 
+  // 객체인 경우
   if (typeof schema === "object" && schema !== null) {
     const result: any = {};
     for (const [key, value] of Object.entries(schema)) {
-      result[key] = generateMockData(value);
+      // 값이 null이거나 undefined인 경우 건너뛰기
+      if (value === null || value === undefined) {
+        continue;
+      }
+
+      // 사용자가 지정한 값이 문자열이고 타입이 아닌 경우 그 값을 그대로 사용
+      if (typeof value === "string" && !isTypeString(value)) {
+        result[key] = value;
+      } else if (typeof value === "number" || typeof value === "boolean") {
+        // 숫자나 불린 값은 그대로 사용
+        result[key] = value;
+      } else {
+        result[key] = generateMockData(value);
+      }
     }
     return result;
   }
@@ -139,4 +169,19 @@ function generateMockData(schema: any): any {
     default:
       return faker.lorem.word();
   }
+}
+
+// 타입 문자열인지 확인하는 헬퍼 함수
+function isTypeString(value: string): boolean {
+  const typeStrings = [
+    "string",
+    "number",
+    "boolean",
+    "email",
+    "phone",
+    "name",
+    "address",
+    "date",
+  ];
+  return typeStrings.includes(value);
 }
