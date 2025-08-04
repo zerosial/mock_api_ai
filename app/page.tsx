@@ -16,10 +16,20 @@ interface Template {
   };
 }
 
+interface TestResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+}
+
 export default function Home() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, TestResult>>(
+    {}
+  );
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchTemplates();
@@ -48,6 +58,68 @@ export default function Home() {
 
   const retryFetch = () => {
     fetchTemplates();
+  };
+
+  const testApi = async (template: Template, method: "GET" | "POST") => {
+    const testKey = `${template.id}-${method}`;
+
+    try {
+      setTesting((prev) => ({ ...prev, [testKey]: true }));
+      setTestResults((prev) => ({ ...prev, [testKey]: { success: false } }));
+
+      const url = `/api/${template.project}/${template.user}${template.apiUrl}`;
+
+      const options: RequestInit = {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+
+      // POST 요청의 경우 샘플 데이터 추가
+      if (method === "POST") {
+        options.body = JSON.stringify({
+          test: true,
+          timestamp: new Date().toISOString(),
+          sampleData: "POST 테스트 데이터",
+        });
+      }
+
+      const response = await fetch(url, options);
+      const data = await response.json();
+
+      setTestResults((prev) => ({
+        ...prev,
+        [testKey]: {
+          success: response.ok,
+          data: data,
+          error: response.ok
+            ? undefined
+            : `HTTP ${response.status}: ${data.message || "알 수 없는 오류"}`,
+        },
+      }));
+    } catch (error) {
+      console.error(`${method} 테스트 오류:`, error);
+      setTestResults((prev) => ({
+        ...prev,
+        [testKey]: {
+          success: false,
+          error: error instanceof Error ? error.message : "알 수 없는 오류",
+        },
+      }));
+    } finally {
+      setTesting((prev) => ({ ...prev, [testKey]: false }));
+    }
+  };
+
+  const getTestResult = (template: Template, method: "GET" | "POST") => {
+    const testKey = `${template.id}-${method}`;
+    return testResults[testKey];
+  };
+
+  const isTesting = (template: Template, method: "GET" | "POST") => {
+    const testKey = `${template.id}-${method}`;
+    return testing[testKey] || false;
   };
 
   return (
@@ -208,14 +280,107 @@ export default function Home() {
                       <div className="text-sm text-gray-500">
                         {new Date(template.createdAt).toLocaleDateString()}
                       </div>
-                      <Link
-                        href={`/api/${template.project}/${template.user}${template.apiUrl}`}
-                        target="_blank"
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        테스트
-                      </Link>
+                      <div className="flex space-x-2">
+                        {/* GET 테스트 버튼 */}
+                        <button
+                          onClick={() => testApi(template, "GET")}
+                          disabled={isTesting(template, "GET")}
+                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
+                            isTesting(template, "GET")
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-green-100 text-green-700 hover:bg-green-200"
+                          }`}
+                        >
+                          {isTesting(template, "GET")
+                            ? "테스트 중..."
+                            : "GET 테스트"}
+                        </button>
+
+                        {/* POST 테스트 버튼 */}
+                        <button
+                          onClick={() => testApi(template, "POST")}
+                          disabled={isTesting(template, "POST")}
+                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
+                            isTesting(template, "POST")
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          }`}
+                        >
+                          {isTesting(template, "POST")
+                            ? "테스트 중..."
+                            : "POST 테스트"}
+                        </button>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* 테스트 결과 표시 */}
+                  <div className="mt-3 space-y-2">
+                    {getTestResult(template, "GET") && (
+                      <div
+                        className={`p-2 rounded text-xs ${
+                          getTestResult(template, "GET")?.success
+                            ? "bg-green-50 border border-green-200"
+                            : "bg-red-50 border border-red-200"
+                        }`}
+                      >
+                        <div className="font-medium mb-1">
+                          GET 테스트 결과:
+                          {getTestResult(template, "GET")?.success ? (
+                            <span className="text-green-700 ml-1">성공</span>
+                          ) : (
+                            <span className="text-red-700 ml-1">실패</span>
+                          )}
+                        </div>
+                        {getTestResult(template, "GET")?.error && (
+                          <div className="text-red-600">
+                            {getTestResult(template, "GET")?.error}
+                          </div>
+                        )}
+                        {getTestResult(template, "GET")?.data && (
+                          <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                            {JSON.stringify(
+                              getTestResult(template, "GET")?.data,
+                              null,
+                              2
+                            )}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+
+                    {getTestResult(template, "POST") && (
+                      <div
+                        className={`p-2 rounded text-xs ${
+                          getTestResult(template, "POST")?.success
+                            ? "bg-green-50 border border-green-200"
+                            : "bg-red-50 border border-red-200"
+                        }`}
+                      >
+                        <div className="font-medium mb-1">
+                          POST 테스트 결과:
+                          {getTestResult(template, "POST")?.success ? (
+                            <span className="text-green-700 ml-1">성공</span>
+                          ) : (
+                            <span className="text-red-700 ml-1">실패</span>
+                          )}
+                        </div>
+                        {getTestResult(template, "POST")?.error && (
+                          <div className="text-red-600">
+                            {getTestResult(template, "POST")?.error}
+                          </div>
+                        )}
+                        {getTestResult(template, "POST")?.data && (
+                          <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                            {JSON.stringify(
+                              getTestResult(template, "POST")?.data,
+                              null,
+                              2
+                            )}
+                          </pre>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}
