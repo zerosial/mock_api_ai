@@ -115,7 +115,7 @@ API 설명: ${description}
 JSON 형식으로만 응답해주세요.`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-nano",
       messages: [
         {
           role: "system",
