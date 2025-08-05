@@ -64,6 +64,11 @@ async function handleRequest(
       return NextResponse.json({ error: "API not found" }, { status: 404 });
     }
 
+    // 지연 시간 적용 (delayMs가 설정되어 있는 경우)
+    if (template.delayMs && template.delayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, template.delayMs));
+    }
+
     // 요청 본문 로깅
     let requestBody = null;
     try {
@@ -87,14 +92,26 @@ async function handleRequest(
     await prisma.apiLog.create({
       data: {
         templateId: template.id,
-        requestBody,
+        requestBody: requestBody || undefined, // null을 undefined로 변환
         responseBody: responseData,
-        statusCode: 200,
+        statusCode: template.errorCode || 200,
         responseTime,
         userAgent: req.headers.get("user-agent") || null,
         ipAddress: req.headers.get("x-forwarded-for") || null,
       },
     });
+
+    // 에러 코드가 설정되어 있으면 해당 코드로 응답
+    if (template.errorCode) {
+      return NextResponse.json(
+        {
+          error: "Custom error response",
+          message: `Configured error code: ${template.errorCode}`,
+          timestamp: new Date().toISOString(),
+        },
+        { status: template.errorCode }
+      );
+    }
 
     return NextResponse.json(responseData, { status: 200 });
   } catch (error) {
