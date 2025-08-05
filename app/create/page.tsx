@@ -303,9 +303,14 @@ export default function CreatePage() {
                   required
                   placeholder="/api/users"
                   value={formData.url}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, url: e.target.value }))
-                  }
+                  onChange={(e) => {
+                    let url = e.target.value;
+                    // URL이 비어있지 않고 /로 시작하지 않으면 /를 추가
+                    if (url && !url.startsWith("/")) {
+                      url = "/" + url;
+                    }
+                    setFormData((prev) => ({ ...prev, url }));
+                  }}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
