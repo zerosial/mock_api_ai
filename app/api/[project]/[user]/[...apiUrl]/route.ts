@@ -92,7 +92,7 @@ async function handleRequest(
     await prisma.apiLog.create({
       data: {
         templateId: template.id,
-        requestBody,
+        requestBody: requestBody || undefined, // null을 undefined로 변환
         responseBody: responseData,
         statusCode: template.errorCode || 200,
         responseTime,
