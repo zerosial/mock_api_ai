@@ -10,6 +10,8 @@ interface Template {
   apiName: string;
   method: string;
   apiUrl: string;
+  delayMs: number;
+  errorCode: number | null;
   createdAt: string;
   _count: {
     apiLogs: number;
@@ -35,6 +37,24 @@ export default function Home() {
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [userFilter, setUserFilter] = useState<string>("");
   const [methodFilter, setMethodFilter] = useState<string>("");
+
+  // 지연 시간 설정 상태
+  const [delayModalOpen, setDelayModalOpen] = useState<number | null>(null);
+  const [delayValue, setDelayValue] = useState<string>("");
+  const [updatingDelay, setUpdatingDelay] = useState<number | null>(null);
+
+  // 에러 코드 설정 상태
+  const [errorCodeModalOpen, setErrorCodeModalOpen] = useState<number | null>(
+    null
+  );
+  const [errorCodeValue, setErrorCodeValue] = useState<string>("");
+  const [updatingErrorCode, setUpdatingErrorCode] = useState<number | null>(
+    null
+  );
+
+  // 삭제 상태
+  const [deleteModalOpen, setDeleteModalOpen] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => {
     fetchTemplates();
@@ -169,6 +189,120 @@ export default function Home() {
     setProjectFilter("");
     setUserFilter("");
     setMethodFilter("");
+  };
+
+  // 지연 시간 설정 함수
+  const setDelay = async (templateId: number) => {
+    try {
+      setUpdatingDelay(templateId);
+      const delayMs = parseInt(delayValue);
+
+      if (isNaN(delayMs) || delayMs < 0 || delayMs > 30000) {
+        alert("지연 시간은 0-30000ms 사이여야 합니다.");
+        return;
+      }
+
+      const response = await fetch(`/api/templates/${templateId}/delay`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ delayMs }),
+      });
+
+      if (!response.ok) {
+        throw new Error("지연 시간 설정에 실패했습니다.");
+      }
+
+      // 템플릿 목록 새로고침
+      await fetchTemplates();
+      setDelayModalOpen(null);
+      setDelayValue("");
+    } catch (error) {
+      console.error("지연 시간 설정 오류:", error);
+      alert("지연 시간 설정 중 오류가 발생했습니다.");
+    } finally {
+      setUpdatingDelay(null);
+    }
+  };
+
+  // 지연 시간 모달 열기
+  const openDelayModal = (template: Template) => {
+    setDelayModalOpen(template.id);
+    setDelayValue(template.delayMs?.toString() || "0");
+  };
+
+  // 에러 코드 설정 함수
+  const setErrorCode = async (templateId: number) => {
+    try {
+      setUpdatingErrorCode(templateId);
+      const errorCode = errorCodeValue === "" ? null : parseInt(errorCodeValue);
+
+      if (
+        errorCode !== null &&
+        (isNaN(errorCode) || errorCode < 100 || errorCode > 599)
+      ) {
+        alert("에러 코드는 100-599 사이의 숫자이거나 비워두어야 합니다.");
+        return;
+      }
+
+      const response = await fetch(`/api/templates/${templateId}/error-code`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ errorCode }),
+      });
+
+      if (!response.ok) {
+        throw new Error("에러 코드 설정에 실패했습니다.");
+      }
+
+      // 템플릿 목록 새로고침
+      await fetchTemplates();
+      setErrorCodeModalOpen(null);
+      setErrorCodeValue("");
+    } catch (error) {
+      console.error("에러 코드 설정 오류:", error);
+      alert("에러 코드 설정 중 오류가 발생했습니다.");
+    } finally {
+      setUpdatingErrorCode(null);
+    }
+  };
+
+  // 에러 코드 모달 열기
+  const openErrorCodeModal = (template: Template) => {
+    setErrorCodeModalOpen(template.id);
+    setErrorCodeValue(template.errorCode?.toString() || "");
+  };
+
+  // 삭제 함수
+  const deleteTemplate = async (templateId: number) => {
+    try {
+      setDeleting(templateId);
+
+      const response = await fetch(`/api/templates/${templateId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("템플릿 삭제에 실패했습니다.");
+      }
+
+      // 템플릿 목록 새로고침
+      await fetchTemplates();
+      setDeleteModalOpen(null);
+    } catch (error) {
+      console.error("템플릿 삭제 오류:", error);
+      alert("템플릿 삭제 중 오류가 발생했습니다.");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  // 삭제 모달 열기
+  const openDeleteModal = (template: Template) => {
+    setDeleteModalOpen(template.id);
   };
 
   return (
@@ -425,6 +559,18 @@ export default function Home() {
                           {template.project} / {template.user} /{" "}
                           {template.apiUrl}
                         </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {template.delayMs > 0 && (
+                            <span className="text-orange-600 mr-3">
+                              ⏱️ 지연: {template.delayMs}ms
+                            </span>
+                          )}
+                          {template.errorCode && (
+                            <span className="text-red-600">
+                              ❌ 에러: {template.errorCode}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-4">
@@ -435,6 +581,30 @@ export default function Home() {
                         {new Date(template.createdAt).toLocaleDateString()}
                       </div>
                       <div className="flex space-x-2">
+                        {/* 지연 시간 설정 버튼 */}
+                        <button
+                          onClick={() => openDelayModal(template)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200"
+                        >
+                          ⏱️ 지연
+                        </button>
+
+                        {/* 에러 코드 설정 버튼 */}
+                        <button
+                          onClick={() => openErrorCodeModal(template)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
+                        >
+                          ❌ 에러
+                        </button>
+
+                        {/* 삭제 버튼 */}
+                        <button
+                          onClick={() => openDeleteModal(template)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        >
+                          🗑️ 삭제
+                        </button>
+
                         {/* GET API인 경우에만 GET 테스트 버튼 표시 */}
                         {template.method === "GET" && (
                           <button
@@ -722,6 +892,163 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      {/* 지연 시간 설정 모달 */}
+      {delayModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                지연 시간 설정
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  지연 시간 (밀리초)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="30000"
+                  value={delayValue}
+                  onChange={(e) => setDelayValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  0-30000ms 사이의 값을 입력하세요
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setDelayModalOpen(null);
+                    setDelayValue("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setDelay(delayModalOpen)}
+                  disabled={updatingDelay === delayModalOpen}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    updatingDelay === delayModalOpen
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {updatingDelay === delayModalOpen ? "설정 중..." : "설정"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 에러 코드 설정 모달 */}
+      {errorCodeModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                에러 코드 설정
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  HTTP 에러 코드
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  max="599"
+                  value={errorCodeValue}
+                  onChange={(e) => setErrorCodeValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="비워두면 정상 응답 (200)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  100-599 사이의 HTTP 에러 코드를 입력하세요. 비워두면 정상
+                  응답(200)을 반환합니다.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setErrorCodeModalOpen(null);
+                    setErrorCodeValue("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setErrorCode(errorCodeModalOpen)}
+                  disabled={updatingErrorCode === errorCodeModalOpen}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    updatingErrorCode === errorCodeModalOpen
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {updatingErrorCode === errorCodeModalOpen
+                    ? "설정 중..."
+                    : "설정"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <svg
+                  className="h-6 w-6 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-4 text-center">
+                API 삭제 확인
+              </h3>
+              <p className="text-sm text-gray-500 mb-6 text-center">
+                이 API를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setDeleteModalOpen(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => deleteTemplate(deleteModalOpen!)}
+                  disabled={deleting === deleteModalOpen}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    deleting === deleteModalOpen
+                      ? "bg-red-400 cursor-not-allowed"
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+                  {deleting === deleteModalOpen ? "삭제 중..." : "삭제"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

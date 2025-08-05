@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Try Prisma Accelerate: https://www.pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
@@ -26,6 +26,8 @@ model Template {
   responseSpec  Json?    // 응답 스펙 (OpenAPI 형식)
   generatedCode String?  // 생성된 코드
   mockData      Json?    // Mock 데이터
+  delayMs       Int      @default(0) // 응답 지연 시간 (밀리초)
+  errorCode     Int?     // 에러 코드 (설정 시 해당 코드로 응답)
   isActive      Boolean  @default(true) // 활성화 여부
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
