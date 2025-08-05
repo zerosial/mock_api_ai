@@ -32,6 +32,7 @@ export default function Home() {
     {}
   );
   const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
   // 필터 상태 추가
   const [projectFilter, setProjectFilter] = useState<string>("");
@@ -79,6 +80,33 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // API URL 복사 함수
+  const copyApiUrl = async (template: Template) => {
+    const apiUrl = `/api/${template.project}/${template.user}${template.apiUrl}`;
+    const fullUrl = `${window.location.origin}${apiUrl}`;
+
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+
+      // 복사 성공 상태 표시
+      const copyKey = `copy-${template.id}`;
+      setCopyStatus((prev) => ({ ...prev, [copyKey]: true }));
+
+      // 2초 후 상태 초기화
+      setTimeout(() => {
+        setCopyStatus((prev) => ({ ...prev, [copyKey]: false }));
+      }, 2000);
+    } catch (error) {
+      console.error("클립보드 복사 실패:", error);
+      alert("클립보드 복사에 실패했습니다.");
+    }
+  };
+
+  // 복사 상태 확인 함수
+  const isCopied = (templateId: number) => {
+    return copyStatus[`copy-${templateId}`] || false;
   };
 
   // 필터링된 템플릿 계산
@@ -581,6 +609,18 @@ export default function Home() {
                         {new Date(template.createdAt).toLocaleDateString()}
                       </div>
                       <div className="flex space-x-2">
+                        {/* API URL 복사 버튼 */}
+                        <button
+                          onClick={() => copyApiUrl(template)}
+                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
+                            isCopied(template.id)
+                              ? "bg-green-100 text-green-700"
+                              : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                          }`}
+                        >
+                          {isCopied(template.id) ? "✅ 복사됨" : "📋 URL 복사"}
+                        </button>
+
                         {/* 지연 시간 설정 버튼 */}
                         <button
                           onClick={() => openDelayModal(template)}
