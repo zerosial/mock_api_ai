@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 
 interface Template {
@@ -31,6 +31,11 @@ export default function Home() {
   );
   const [testing, setTesting] = useState<Record<string, boolean>>({});
 
+  // 필터 상태 추가
+  const [projectFilter, setProjectFilter] = useState<string>("");
+  const [userFilter, setUserFilter] = useState<string>("");
+  const [methodFilter, setMethodFilter] = useState<string>("");
+
   useEffect(() => {
     fetchTemplates();
   }, []);
@@ -55,6 +60,34 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // 필터링된 템플릿 계산
+  const filteredTemplates = useMemo(() => {
+    return templates.filter((template) => {
+      const matchesProject =
+        !projectFilter ||
+        template.project.toLowerCase().includes(projectFilter.toLowerCase());
+      const matchesUser =
+        !userFilter ||
+        template.user.toLowerCase().includes(userFilter.toLowerCase());
+      const matchesMethod = !methodFilter || template.method === methodFilter;
+
+      return matchesProject && matchesUser && matchesMethod;
+    });
+  }, [templates, projectFilter, userFilter, methodFilter]);
+
+  // 고유한 프로젝트명과 유저명 추출
+  const uniqueProjects = useMemo(() => {
+    return [...new Set(templates.map((t) => t.project))].sort();
+  }, [templates]);
+
+  const uniqueUsers = useMemo(() => {
+    return [...new Set(templates.map((t) => t.user))].sort();
+  }, [templates]);
+
+  const uniqueMethods = useMemo(() => {
+    return [...new Set(templates.map((t) => t.method))].sort();
+  }, [templates]);
 
   const retryFetch = () => {
     fetchTemplates();
@@ -131,6 +164,13 @@ export default function Home() {
     return testing[testKey] || false;
   };
 
+  // 필터 초기화 함수
+  const clearFilters = () => {
+    setProjectFilter("");
+    setUserFilter("");
+    setMethodFilter("");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -164,6 +204,98 @@ export default function Home() {
           >
             JSON으로 API 생성
           </Link>
+        </div>
+
+        {/* 필터 섹션 */}
+        <div className="mb-6 bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">필터</h3>
+            <button
+              onClick={clearFilters}
+              className="text-sm text-gray-500 hover:text-gray-700"
+            >
+              필터 초기화
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 프로젝트 필터 */}
+            <div>
+              <label
+                htmlFor="project-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                프로젝트명
+              </label>
+              <select
+                id="project-filter"
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 프로젝트</option>
+                {uniqueProjects.map((project) => (
+                  <option key={project} value={project}>
+                    {project}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 유저 필터 */}
+            <div>
+              <label
+                htmlFor="user-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                유저명
+              </label>
+              <select
+                id="user-filter"
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 유저</option>
+                {uniqueUsers.map((user) => (
+                  <option key={user} value={user}>
+                    {user}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* HTTP 메서드 필터 */}
+            <div>
+              <label
+                htmlFor="method-filter"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                HTTP 메서드
+              </label>
+              <select
+                id="method-filter"
+                value={methodFilter}
+                onChange={(e) => setMethodFilter(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">모든 메서드</option>
+                {uniqueMethods.map((method) => (
+                  <option key={method} value={method}>
+                    {method}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 필터 결과 요약 */}
+          <div className="mt-4 text-sm text-gray-600">
+            총 {templates.length}개 중 {filteredTemplates.length}개 표시
+            {(projectFilter || userFilter || methodFilter) && (
+              <span className="ml-2 text-blue-600">(필터 적용됨)</span>
+            )}
+          </div>
         </div>
 
         {/* 에러 메시지 */}
@@ -226,7 +358,7 @@ export default function Home() {
                 ))}
               </div>
             </div>
-          ) : templates.length === 0 ? (
+          ) : filteredTemplates.length === 0 ? (
             <div className="px-4 py-5 sm:px-6 text-center">
               <div className="text-gray-400 mb-4">
                 <svg
@@ -243,17 +375,30 @@ export default function Home() {
                   />
                 </svg>
               </div>
-              <p className="text-gray-500 mb-4">아직 생성된 API가 없습니다.</p>
-              <Link
-                href="/create"
-                className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
-              >
-                첫 번째 API 생성하기
-              </Link>
+              <p className="text-gray-500 mb-4">
+                {templates.length === 0
+                  ? "아직 생성된 API가 없습니다."
+                  : "필터 조건에 맞는 API가 없습니다."}
+              </p>
+              {templates.length === 0 ? (
+                <Link
+                  href="/create"
+                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-blue-600 bg-blue-100 hover:bg-blue-200"
+                >
+                  첫 번째 API 생성하기
+                </Link>
+              ) : (
+                <button
+                  onClick={clearFilters}
+                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-gray-600 bg-gray-100 hover:bg-gray-200"
+                >
+                  필터 초기화
+                </button>
+              )}
             </div>
           ) : (
             <ul className="divide-y divide-gray-200">
-              {templates.map((template) => (
+              {filteredTemplates.map((template) => (
                 <li key={template.id} className="px-4 py-4 sm:px-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
