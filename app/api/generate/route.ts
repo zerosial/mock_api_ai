@@ -71,7 +71,7 @@ API 이름: ${apiName}
 - JSON 형식으로만 응답해주세요.`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
