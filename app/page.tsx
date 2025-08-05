@@ -20,7 +20,7 @@ interface Template {
 
 interface TestResult {
   success: boolean;
-  data?: unknown;
+  data?: any;
   error?: string;
 }
 
@@ -716,13 +716,19 @@ export default function Home() {
                               )}
                               {getTestResult(template, "GET")?.data && (
                                 <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {String(
-                                    JSON.stringify(
-                                      getTestResult(template, "GET")?.data,
-                                      null,
-                                      2
-                                    )
-                                  )}
+                                  {(() => {
+                                    try {
+                                      return JSON.stringify(
+                                        getTestResult(template, "GET")?.data,
+                                        null,
+                                        2
+                                      );
+                                    } catch {
+                                      return String(
+                                        getTestResult(template, "GET")?.data
+                                      );
+                                    }
+                                  })()}
                                 </pre>
                               )}
                             </div>
@@ -768,13 +774,19 @@ export default function Home() {
                               )}
                               {getTestResult(template, "POST")?.data && (
                                 <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {String(
-                                    JSON.stringify(
-                                      getTestResult(template, "POST")?.data,
-                                      null,
-                                      2
-                                    )
-                                  )}
+                                  {(() => {
+                                    try {
+                                      return JSON.stringify(
+                                        getTestResult(template, "POST")?.data,
+                                        null,
+                                        2
+                                      );
+                                    } catch {
+                                      return String(
+                                        getTestResult(template, "POST")?.data
+                                      );
+                                    }
+                                  })()}
                                 </pre>
                               )}
                             </div>
@@ -820,13 +832,19 @@ export default function Home() {
                               )}
                               {getTestResult(template, "PUT")?.data && (
                                 <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {String(
-                                    JSON.stringify(
-                                      getTestResult(template, "PUT")?.data,
-                                      null,
-                                      2
-                                    )
-                                  )}
+                                  {(() => {
+                                    try {
+                                      return JSON.stringify(
+                                        getTestResult(template, "PUT")?.data,
+                                        null,
+                                        2
+                                      );
+                                    } catch {
+                                      return String(
+                                        getTestResult(template, "PUT")?.data
+                                      );
+                                    }
+                                  })()}
                                 </pre>
                               )}
                             </div>
@@ -872,13 +890,19 @@ export default function Home() {
                               )}
                               {getTestResult(template, "DELETE")?.data && (
                                 <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {String(
-                                    JSON.stringify(
-                                      getTestResult(template, "DELETE")?.data,
-                                      null,
-                                      2
-                                    )
-                                  )}
+                                  {(() => {
+                                    try {
+                                      return JSON.stringify(
+                                        getTestResult(template, "DELETE")?.data,
+                                        null,
+                                        2
+                                      );
+                                    } catch {
+                                      return String(
+                                        getTestResult(template, "DELETE")?.data
+                                      );
+                                    }
+                                  })()}
                                 </pre>
                               )}
                             </div>
