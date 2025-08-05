@@ -364,152 +364,212 @@ export default function Home() {
                   {/* 테스트 결과 표시 */}
                   <div className="mt-3 space-y-2">
                     {/* GET 테스트 결과 */}
-                    {template.method === "GET" &&
-                      getTestResult(template, "GET") && (
-                        <div
-                          className={`p-2 rounded text-xs ${
-                            getTestResult(template, "GET")?.success
-                              ? "bg-green-50 border border-green-200"
-                              : "bg-red-50 border border-red-200"
-                          }`}
-                        >
-                          <div className="font-medium mb-1">
-                            GET 테스트 결과:
-                            {getTestResult(template, "GET")?.success ? (
-                              <span className="text-green-700 ml-1">성공</span>
-                            ) : (
-                              <span className="text-red-700 ml-1">실패</span>
-                            )}
+                    {template.method === "GET" && (
+                      <>
+                        {isTesting(template, "GET") && (
+                          <div className="p-2 rounded text-xs bg-blue-50 border border-blue-200">
+                            <div className="font-medium mb-1 text-blue-700">
+                              GET 테스트: 통신 중...
+                            </div>
                           </div>
-                          {getTestResult(template, "GET")?.error && (
-                            <div className="text-red-600">
-                              {getTestResult(template, "GET")?.error}
+                        )}
+                        {!isTesting(template, "GET") &&
+                          getTestResult(template, "GET") && (
+                            <div
+                              className={`p-2 rounded text-xs ${
+                                getTestResult(template, "GET")?.success
+                                  ? "bg-green-50 border border-green-200"
+                                  : "bg-red-50 border border-red-200"
+                              }`}
+                            >
+                              <div className="font-medium mb-1">
+                                GET 테스트 결과:
+                                {getTestResult(template, "GET")?.success ? (
+                                  <span className="text-green-700 ml-1">
+                                    성공
+                                  </span>
+                                ) : (
+                                  <span className="text-red-700 ml-1">
+                                    실패
+                                  </span>
+                                )}
+                              </div>
+                              {getTestResult(template, "GET")?.error && (
+                                <div className="text-red-600">
+                                  {getTestResult(template, "GET")?.error}
+                                </div>
+                              )}
+                              {getTestResult(template, "GET")?.data && (
+                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                  {String(
+                                    JSON.stringify(
+                                      getTestResult(template, "GET")?.data,
+                                      null,
+                                      2
+                                    )
+                                  )}
+                                </pre>
+                              )}
                             </div>
                           )}
-                          {getTestResult(template, "GET")?.data && (
-                            <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                              {String(
-                                JSON.stringify(
-                                  getTestResult(template, "GET")?.data,
-                                  null,
-                                  2
-                                )
-                              )}
-                            </pre>
-                          )}
-                        </div>
-                      )}
+                      </>
+                    )}
 
                     {/* POST 테스트 결과 */}
-                    {template.method === "POST" &&
-                      getTestResult(template, "POST") && (
-                        <div
-                          className={`p-2 rounded text-xs ${
-                            getTestResult(template, "POST")?.success
-                              ? "bg-green-50 border border-green-200"
-                              : "bg-red-50 border border-red-200"
-                          }`}
-                        >
-                          <div className="font-medium mb-1">
-                            POST 테스트 결과:
-                            {getTestResult(template, "POST")?.success ? (
-                              <span className="text-green-700 ml-1">성공</span>
-                            ) : (
-                              <span className="text-red-700 ml-1">실패</span>
-                            )}
+                    {template.method === "POST" && (
+                      <>
+                        {isTesting(template, "POST") && (
+                          <div className="p-2 rounded text-xs bg-blue-50 border border-blue-200">
+                            <div className="font-medium mb-1 text-blue-700">
+                              POST 테스트: 통신 중...
+                            </div>
                           </div>
-                          {getTestResult(template, "POST")?.error && (
-                            <div className="text-red-600">
-                              {getTestResult(template, "POST")?.error}
+                        )}
+                        {!isTesting(template, "POST") &&
+                          getTestResult(template, "POST") && (
+                            <div
+                              className={`p-2 rounded text-xs ${
+                                getTestResult(template, "POST")?.success
+                                  ? "bg-green-50 border border-green-200"
+                                  : "bg-red-50 border border-red-200"
+                              }`}
+                            >
+                              <div className="font-medium mb-1">
+                                POST 테스트 결과:
+                                {getTestResult(template, "POST")?.success ? (
+                                  <span className="text-green-700 ml-1">
+                                    성공
+                                  </span>
+                                ) : (
+                                  <span className="text-red-700 ml-1">
+                                    실패
+                                  </span>
+                                )}
+                              </div>
+                              {getTestResult(template, "POST")?.error && (
+                                <div className="text-red-600">
+                                  {getTestResult(template, "POST")?.error}
+                                </div>
+                              )}
+                              {getTestResult(template, "POST")?.data && (
+                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                  {String(
+                                    JSON.stringify(
+                                      getTestResult(template, "POST")?.data,
+                                      null,
+                                      2
+                                    )
+                                  )}
+                                </pre>
+                              )}
                             </div>
                           )}
-                          {getTestResult(template, "POST")?.data && (
-                            <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                              {String(
-                                JSON.stringify(
-                                  getTestResult(template, "POST")?.data,
-                                  null,
-                                  2
-                                )
-                              )}
-                            </pre>
-                          )}
-                        </div>
-                      )}
+                      </>
+                    )}
 
                     {/* PUT 테스트 결과 */}
-                    {template.method === "PUT" &&
-                      getTestResult(template, "PUT") && (
-                        <div
-                          className={`p-2 rounded text-xs ${
-                            getTestResult(template, "PUT")?.success
-                              ? "bg-green-50 border border-green-200"
-                              : "bg-red-50 border border-red-200"
-                          }`}
-                        >
-                          <div className="font-medium mb-1">
-                            PUT 테스트 결과:
-                            {getTestResult(template, "PUT")?.success ? (
-                              <span className="text-green-700 ml-1">성공</span>
-                            ) : (
-                              <span className="text-red-700 ml-1">실패</span>
-                            )}
+                    {template.method === "PUT" && (
+                      <>
+                        {isTesting(template, "PUT") && (
+                          <div className="p-2 rounded text-xs bg-blue-50 border border-blue-200">
+                            <div className="font-medium mb-1 text-blue-700">
+                              PUT 테스트: 통신 중...
+                            </div>
                           </div>
-                          {getTestResult(template, "PUT")?.error && (
-                            <div className="text-red-600">
-                              {getTestResult(template, "PUT")?.error}
+                        )}
+                        {!isTesting(template, "PUT") &&
+                          getTestResult(template, "PUT") && (
+                            <div
+                              className={`p-2 rounded text-xs ${
+                                getTestResult(template, "PUT")?.success
+                                  ? "bg-green-50 border border-green-200"
+                                  : "bg-red-50 border border-red-200"
+                              }`}
+                            >
+                              <div className="font-medium mb-1">
+                                PUT 테스트 결과:
+                                {getTestResult(template, "PUT")?.success ? (
+                                  <span className="text-green-700 ml-1">
+                                    성공
+                                  </span>
+                                ) : (
+                                  <span className="text-red-700 ml-1">
+                                    실패
+                                  </span>
+                                )}
+                              </div>
+                              {getTestResult(template, "PUT")?.error && (
+                                <div className="text-red-600">
+                                  {getTestResult(template, "PUT")?.error}
+                                </div>
+                              )}
+                              {getTestResult(template, "PUT")?.data && (
+                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                  {String(
+                                    JSON.stringify(
+                                      getTestResult(template, "PUT")?.data,
+                                      null,
+                                      2
+                                    )
+                                  )}
+                                </pre>
+                              )}
                             </div>
                           )}
-                          {getTestResult(template, "PUT")?.data && (
-                            <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                              {String(
-                                JSON.stringify(
-                                  getTestResult(template, "PUT")?.data,
-                                  null,
-                                  2
-                                )
-                              )}
-                            </pre>
-                          )}
-                        </div>
-                      )}
+                      </>
+                    )}
 
                     {/* DELETE 테스트 결과 */}
-                    {template.method === "DELETE" &&
-                      getTestResult(template, "DELETE") && (
-                        <div
-                          className={`p-2 rounded text-xs ${
-                            getTestResult(template, "DELETE")?.success
-                              ? "bg-green-50 border border-green-200"
-                              : "bg-red-50 border border-red-200"
-                          }`}
-                        >
-                          <div className="font-medium mb-1">
-                            DELETE 테스트 결과:
-                            {getTestResult(template, "DELETE")?.success ? (
-                              <span className="text-green-700 ml-1">성공</span>
-                            ) : (
-                              <span className="text-red-700 ml-1">실패</span>
-                            )}
+                    {template.method === "DELETE" && (
+                      <>
+                        {isTesting(template, "DELETE") && (
+                          <div className="p-2 rounded text-xs bg-blue-50 border border-blue-200">
+                            <div className="font-medium mb-1 text-blue-700">
+                              DELETE 테스트: 통신 중...
+                            </div>
                           </div>
-                          {getTestResult(template, "DELETE")?.error && (
-                            <div className="text-red-600">
-                              {getTestResult(template, "DELETE")?.error}
+                        )}
+                        {!isTesting(template, "DELETE") &&
+                          getTestResult(template, "DELETE") && (
+                            <div
+                              className={`p-2 rounded text-xs ${
+                                getTestResult(template, "DELETE")?.success
+                                  ? "bg-green-50 border border-green-200"
+                                  : "bg-red-50 border border-red-200"
+                              }`}
+                            >
+                              <div className="font-medium mb-1">
+                                DELETE 테스트 결과:
+                                {getTestResult(template, "DELETE")?.success ? (
+                                  <span className="text-green-700 ml-1">
+                                    성공
+                                  </span>
+                                ) : (
+                                  <span className="text-red-700 ml-1">
+                                    실패
+                                  </span>
+                                )}
+                              </div>
+                              {getTestResult(template, "DELETE")?.error && (
+                                <div className="text-red-600">
+                                  {getTestResult(template, "DELETE")?.error}
+                                </div>
+                              )}
+                              {getTestResult(template, "DELETE")?.data && (
+                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                  {String(
+                                    JSON.stringify(
+                                      getTestResult(template, "DELETE")?.data,
+                                      null,
+                                      2
+                                    )
+                                  )}
+                                </pre>
+                              )}
                             </div>
                           )}
-                          {getTestResult(template, "DELETE")?.data && (
-                            <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                              {String(
-                                JSON.stringify(
-                                  getTestResult(template, "DELETE")?.data,
-                                  null,
-                                  2
-                                )
-                              )}
-                            </pre>
-                          )}
-                        </div>
-                      )}
+                      </>
+                    )}
                   </div>
                 </li>
               ))}
