@@ -225,6 +225,16 @@ export default function Home() {
     }
   };
 
+  // 텍스트 영역 높이 자동 조정 함수
+  const adjustTextareaHeight = (element: HTMLTextAreaElement) => {
+    element.style.height = "auto";
+    const scrollHeight = element.scrollHeight;
+    const minHeight = 200; // 기본 높이를 더 크게 설정
+    const maxHeight = 600; // 최대 높이를 더 크게 설정
+    element.style.height =
+      Math.min(Math.max(scrollHeight, minHeight), maxHeight) + "px";
+  };
+
   // JSON 편집 취소
   const cancelJsonEdit = (
     template: Template,
@@ -854,15 +864,28 @@ export default function Home() {
                                             `${template.id}-GET`
                                           ] || ""
                                         }
-                                        onChange={(e) =>
+                                        onChange={(e) => {
                                           setJsonEditorValue((prev) => ({
                                             ...prev,
                                             [`${template.id}-GET`]:
                                               e.target.value,
-                                          }))
+                                          }));
+                                          adjustTextareaHeight(e.target);
+                                        }}
+                                        onFocus={(e) =>
+                                          adjustTextareaHeight(e.target)
                                         }
-                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        ref={(el) => {
+                                          if (el) {
+                                            adjustTextareaHeight(el);
+                                          }
+                                        }}
+                                        className="w-full text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto"
                                         placeholder="JSON을 편집하세요..."
+                                        style={{
+                                          minHeight: "200px",
+                                          maxHeight: "600px",
+                                        }}
                                       />
                                       <div className="flex space-x-2">
                                         <button
@@ -965,15 +988,28 @@ export default function Home() {
                                             `${template.id}-POST`
                                           ] || ""
                                         }
-                                        onChange={(e) =>
+                                        onChange={(e) => {
                                           setJsonEditorValue((prev) => ({
                                             ...prev,
                                             [`${template.id}-POST`]:
                                               e.target.value,
-                                          }))
+                                          }));
+                                          adjustTextareaHeight(e.target);
+                                        }}
+                                        onFocus={(e) =>
+                                          adjustTextareaHeight(e.target)
                                         }
-                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        ref={(el) => {
+                                          if (el) {
+                                            adjustTextareaHeight(el);
+                                          }
+                                        }}
+                                        className="w-full text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto"
                                         placeholder="JSON을 편집하세요..."
+                                        style={{
+                                          minHeight: "200px",
+                                          maxHeight: "600px",
+                                        }}
                                       />
                                       <div className="flex space-x-2">
                                         <button
@@ -1076,15 +1112,28 @@ export default function Home() {
                                             `${template.id}-PUT`
                                           ] || ""
                                         }
-                                        onChange={(e) =>
+                                        onChange={(e) => {
                                           setJsonEditorValue((prev) => ({
                                             ...prev,
                                             [`${template.id}-PUT`]:
                                               e.target.value,
-                                          }))
+                                          }));
+                                          adjustTextareaHeight(e.target);
+                                        }}
+                                        onFocus={(e) =>
+                                          adjustTextareaHeight(e.target)
                                         }
-                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        ref={(el) => {
+                                          if (el) {
+                                            adjustTextareaHeight(el);
+                                          }
+                                        }}
+                                        className="w-full text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto"
                                         placeholder="JSON을 편집하세요..."
+                                        style={{
+                                          minHeight: "200px",
+                                          maxHeight: "600px",
+                                        }}
                                       />
                                       <div className="flex space-x-2">
                                         <button
@@ -1187,15 +1236,28 @@ export default function Home() {
                                             `${template.id}-DELETE`
                                           ] || ""
                                         }
-                                        onChange={(e) =>
+                                        onChange={(e) => {
                                           setJsonEditorValue((prev) => ({
                                             ...prev,
                                             [`${template.id}-DELETE`]:
                                               e.target.value,
-                                          }))
+                                          }));
+                                          adjustTextareaHeight(e.target);
+                                        }}
+                                        onFocus={(e) =>
+                                          adjustTextareaHeight(e.target)
                                         }
-                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        ref={(el) => {
+                                          if (el) {
+                                            adjustTextareaHeight(el);
+                                          }
+                                        }}
+                                        className="w-full text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-y-auto"
                                         placeholder="JSON을 편집하세요..."
+                                        style={{
+                                          minHeight: "200px",
+                                          maxHeight: "600px",
+                                        }}
                                       />
                                       <div className="flex space-x-2">
                                         <button
