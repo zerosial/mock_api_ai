@@ -22,6 +22,8 @@ interface TestResult {
   success: boolean;
   data?: any;
   error?: string;
+  isEditing?: boolean;
+  editedData?: string;
 }
 
 export default function Home() {
@@ -31,6 +33,10 @@ export default function Home() {
   const [testResults, setTestResults] = useState<Record<string, TestResult>>(
     {}
   );
+  const [editingJson, setEditingJson] = useState<Record<string, boolean>>({});
+  const [jsonEditorValue, setJsonEditorValue] = useState<
+    Record<string, string>
+  >({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
@@ -202,6 +208,90 @@ export default function Home() {
   ) => {
     const testKey = `${template.id}-${method}`;
     return testResults[testKey];
+  };
+
+  // JSON 편집 시작
+  const startJsonEdit = (
+    template: Template,
+    method: "GET" | "POST" | "PUT" | "DELETE"
+  ) => {
+    const testKey = `${template.id}-${method}`;
+    const result = testResults[testKey];
+
+    if (result?.data) {
+      const jsonString = JSON.stringify(result.data, null, 2);
+      setJsonEditorValue((prev) => ({ ...prev, [testKey]: jsonString }));
+      setEditingJson((prev) => ({ ...prev, [testKey]: true }));
+    }
+  };
+
+  // JSON 편집 취소
+  const cancelJsonEdit = (
+    template: Template,
+    method: "GET" | "POST" | "PUT" | "DELETE"
+  ) => {
+    const testKey = `${template.id}-${method}`;
+    setEditingJson((prev) => ({ ...prev, [testKey]: false }));
+    setJsonEditorValue((prev) => ({ ...prev, [testKey]: "" }));
+  };
+
+  // JSON 편집 저장 및 적용
+  const saveJsonEdit = async (
+    template: Template,
+    method: "GET" | "POST" | "PUT" | "DELETE"
+  ) => {
+    const testKey = `${template.id}-${method}`;
+    const jsonString = jsonEditorValue[testKey];
+
+    try {
+      // JSON 유효성 검사
+      const parsedData = JSON.parse(jsonString);
+
+      // 서버에 mock 데이터 업데이트
+      const response = await fetch(`/api/templates/${template.id}/mock-data`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockData: parsedData }),
+      });
+
+      if (!response.ok) {
+        throw new Error("서버에 데이터 저장에 실패했습니다.");
+      }
+
+      // 테스트 결과 업데이트
+      setTestResults((prev) => ({
+        ...prev,
+        [testKey]: {
+          ...prev[testKey]!,
+          data: parsedData,
+          editedData: jsonString,
+        },
+      }));
+
+      // 편집 모드 종료
+      setEditingJson((prev) => ({ ...prev, [testKey]: false }));
+
+      // 성공 메시지
+      alert(
+        "JSON 데이터가 성공적으로 저장되었습니다. 이제 실제 API 응답에 반영됩니다."
+      );
+    } catch (error) {
+      console.error("JSON 저장 오류:", error);
+      alert(
+        "유효하지 않은 JSON 형식이거나 서버 저장에 실패했습니다. 다시 확인해주세요."
+      );
+    }
+  };
+
+  // JSON 편집 중인지 확인
+  const isEditingJson = (
+    template: Template,
+    method: "GET" | "POST" | "PUT" | "DELETE"
+  ) => {
+    const testKey = `${template.id}-${method}`;
+    return editingJson[testKey] || false;
   };
 
   const isTesting = (
@@ -755,21 +845,74 @@ export default function Home() {
                                 </div>
                               )}
                               {getTestResult(template, "GET")?.data && (
-                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {(() => {
-                                    try {
-                                      return JSON.stringify(
-                                        getTestResult(template, "GET")?.data,
-                                        null,
-                                        2
-                                      );
-                                    } catch {
-                                      return String(
-                                        getTestResult(template, "GET")?.data
-                                      );
-                                    }
-                                  })()}
-                                </pre>
+                                <div>
+                                  {isEditingJson(template, "GET") ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={
+                                          jsonEditorValue[
+                                            `${template.id}-GET`
+                                          ] || ""
+                                        }
+                                        onChange={(e) =>
+                                          setJsonEditorValue((prev) => ({
+                                            ...prev,
+                                            [`${template.id}-GET`]:
+                                              e.target.value,
+                                          }))
+                                        }
+                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="JSON을 편집하세요..."
+                                      />
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() =>
+                                            saveJsonEdit(template, "GET")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                        >
+                                          저장
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            cancelJsonEdit(template, "GET")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                        {(() => {
+                                          try {
+                                            return JSON.stringify(
+                                              getTestResult(template, "GET")
+                                                ?.data,
+                                              null,
+                                              2
+                                            );
+                                          } catch {
+                                            return String(
+                                              getTestResult(template, "GET")
+                                                ?.data
+                                            );
+                                          }
+                                        })()}
+                                      </pre>
+                                      <button
+                                        onClick={() =>
+                                          startJsonEdit(template, "GET")
+                                        }
+                                        className="mt-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                      >
+                                        JSON 수정하기
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
@@ -813,21 +956,74 @@ export default function Home() {
                                 </div>
                               )}
                               {getTestResult(template, "POST")?.data && (
-                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {(() => {
-                                    try {
-                                      return JSON.stringify(
-                                        getTestResult(template, "POST")?.data,
-                                        null,
-                                        2
-                                      );
-                                    } catch {
-                                      return String(
-                                        getTestResult(template, "POST")?.data
-                                      );
-                                    }
-                                  })()}
-                                </pre>
+                                <div>
+                                  {isEditingJson(template, "POST") ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={
+                                          jsonEditorValue[
+                                            `${template.id}-POST`
+                                          ] || ""
+                                        }
+                                        onChange={(e) =>
+                                          setJsonEditorValue((prev) => ({
+                                            ...prev,
+                                            [`${template.id}-POST`]:
+                                              e.target.value,
+                                          }))
+                                        }
+                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="JSON을 편집하세요..."
+                                      />
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() =>
+                                            saveJsonEdit(template, "POST")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                        >
+                                          저장
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            cancelJsonEdit(template, "POST")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                        {(() => {
+                                          try {
+                                            return JSON.stringify(
+                                              getTestResult(template, "POST")
+                                                ?.data,
+                                              null,
+                                              2
+                                            );
+                                          } catch {
+                                            return String(
+                                              getTestResult(template, "POST")
+                                                ?.data
+                                            );
+                                          }
+                                        })()}
+                                      </pre>
+                                      <button
+                                        onClick={() =>
+                                          startJsonEdit(template, "POST")
+                                        }
+                                        className="mt-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                      >
+                                        JSON 수정하기
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
@@ -871,21 +1067,74 @@ export default function Home() {
                                 </div>
                               )}
                               {getTestResult(template, "PUT")?.data && (
-                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {(() => {
-                                    try {
-                                      return JSON.stringify(
-                                        getTestResult(template, "PUT")?.data,
-                                        null,
-                                        2
-                                      );
-                                    } catch {
-                                      return String(
-                                        getTestResult(template, "PUT")?.data
-                                      );
-                                    }
-                                  })()}
-                                </pre>
+                                <div>
+                                  {isEditingJson(template, "PUT") ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={
+                                          jsonEditorValue[
+                                            `${template.id}-PUT`
+                                          ] || ""
+                                        }
+                                        onChange={(e) =>
+                                          setJsonEditorValue((prev) => ({
+                                            ...prev,
+                                            [`${template.id}-PUT`]:
+                                              e.target.value,
+                                          }))
+                                        }
+                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="JSON을 편집하세요..."
+                                      />
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() =>
+                                            saveJsonEdit(template, "PUT")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                        >
+                                          저장
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            cancelJsonEdit(template, "PUT")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                        {(() => {
+                                          try {
+                                            return JSON.stringify(
+                                              getTestResult(template, "PUT")
+                                                ?.data,
+                                              null,
+                                              2
+                                            );
+                                          } catch {
+                                            return String(
+                                              getTestResult(template, "PUT")
+                                                ?.data
+                                            );
+                                          }
+                                        })()}
+                                      </pre>
+                                      <button
+                                        onClick={() =>
+                                          startJsonEdit(template, "PUT")
+                                        }
+                                        className="mt-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                      >
+                                        JSON 수정하기
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
@@ -929,21 +1178,74 @@ export default function Home() {
                                 </div>
                               )}
                               {getTestResult(template, "DELETE")?.data && (
-                                <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
-                                  {(() => {
-                                    try {
-                                      return JSON.stringify(
-                                        getTestResult(template, "DELETE")?.data,
-                                        null,
-                                        2
-                                      );
-                                    } catch {
-                                      return String(
-                                        getTestResult(template, "DELETE")?.data
-                                      );
-                                    }
-                                  })()}
-                                </pre>
+                                <div>
+                                  {isEditingJson(template, "DELETE") ? (
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={
+                                          jsonEditorValue[
+                                            `${template.id}-DELETE`
+                                          ] || ""
+                                        }
+                                        onChange={(e) =>
+                                          setJsonEditorValue((prev) => ({
+                                            ...prev,
+                                            [`${template.id}-DELETE`]:
+                                              e.target.value,
+                                          }))
+                                        }
+                                        className="w-full h-32 text-xs font-mono bg-white border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="JSON을 편집하세요..."
+                                      />
+                                      <div className="flex space-x-2">
+                                        <button
+                                          onClick={() =>
+                                            saveJsonEdit(template, "DELETE")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                        >
+                                          저장
+                                        </button>
+                                        <button
+                                          onClick={() =>
+                                            cancelJsonEdit(template, "DELETE")
+                                          }
+                                          className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
+                                        {(() => {
+                                          try {
+                                            return JSON.stringify(
+                                              getTestResult(template, "DELETE")
+                                                ?.data,
+                                              null,
+                                              2
+                                            );
+                                          } catch {
+                                            return String(
+                                              getTestResult(template, "DELETE")
+                                                ?.data
+                                            );
+                                          }
+                                        })()}
+                                      </pre>
+                                      <button
+                                        onClick={() =>
+                                          startJsonEdit(template, "DELETE")
+                                        }
+                                        className="mt-1 px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                      >
+                                        JSON 수정하기
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
