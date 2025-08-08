@@ -2,13 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { faker } from "@faker-js/faker";
 
+// CORS 헤더를 설정하는 헬퍼 함수
+function setCORSHeaders(response: NextResponse) {
+  response.headers.set("Access-Control-Allow-Origin", "*");
+  response.headers.set(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  );
+  response.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+  );
+  response.headers.set("Access-Control-Max-Age", "86400");
+  return response;
+}
+
+// OPTIONS 메서드 추가 (preflight 요청 처리)
+export async function OPTIONS() {
+  const response = new NextResponse(null, { status: 200 });
+  return setCORSHeaders(response);
+}
+
 export async function GET(
   req: NextRequest,
   {
     params,
   }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, await params, "GET");
+  const response = await handleRequest(req, await params, "GET");
+  return setCORSHeaders(response);
 }
 
 export async function POST(
@@ -17,7 +39,8 @@ export async function POST(
     params,
   }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, await params, "POST");
+  const response = await handleRequest(req, await params, "POST");
+  return setCORSHeaders(response);
 }
 
 export async function PUT(
@@ -26,7 +49,8 @@ export async function PUT(
     params,
   }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, await params, "PUT");
+  const response = await handleRequest(req, await params, "PUT");
+  return setCORSHeaders(response);
 }
 
 export async function DELETE(
@@ -35,7 +59,8 @@ export async function DELETE(
     params,
   }: { params: Promise<{ project: string; user: string; apiUrl: string[] }> }
 ) {
-  return handleRequest(req, await params, "DELETE");
+  const response = await handleRequest(req, await params, "DELETE");
+  return setCORSHeaders(response);
 }
 
 async function handleRequest(
@@ -61,7 +86,11 @@ async function handleRequest(
     });
 
     if (!template) {
-      return NextResponse.json({ error: "API not found" }, { status: 404 });
+      const response = NextResponse.json(
+        { error: "API not found" },
+        { status: 404 }
+      );
+      return response;
     }
 
     // 지연 시간 적용 (delayMs가 설정되어 있는 경우)
@@ -81,7 +110,7 @@ async function handleRequest(
     let responseData;
     if (template.mockData) {
       console.log("Template mockData:", template.mockData);
-      responseData = generateMockData(template.mockData as any);
+      responseData = generateMockData(template.mockData);
       console.log("Generated responseData:", responseData);
     } else {
       responseData = { message: "No mock data available" };
@@ -103,7 +132,7 @@ async function handleRequest(
 
     // 에러 코드가 설정되어 있으면 해당 코드로 응답
     if (template.errorCode) {
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           error: "Custom error response",
           message: `Configured error code: ${template.errorCode}`,
@@ -111,19 +140,22 @@ async function handleRequest(
         },
         { status: template.errorCode }
       );
+      return response;
     }
 
-    return NextResponse.json(responseData, { status: 200 });
+    const response = NextResponse.json(responseData, { status: 200 });
+    return response;
   } catch (error) {
     console.error("API 호출 오류:", error);
-    return NextResponse.json(
+    const response = NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
     );
+    return response;
   }
 }
 
-function generateMockData(schema: any): any {
+function generateMockData(schema: unknown): unknown {
   // schema가 null이거나 undefined인 경우
   if (schema === null || schema === undefined) {
     return null;
@@ -145,7 +177,7 @@ function generateMockData(schema: any): any {
 
   // 객체인 경우
   if (typeof schema === "object" && schema !== null) {
-    const result: any = {};
+    const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(schema)) {
       // 값이 null이거나 undefined인 경우 건너뛰기
       if (value === null || value === undefined) {
