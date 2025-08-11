@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://www.pris.ly/cli/accelerate-init
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
   provider = "prisma-client-js"
@@ -55,4 +55,44 @@ model ApiLog {
   template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@map("api_logs")
+}
+
+// 프록시 서버 설정 모델
+model ProxyServer {
+  id          Int      @id @default(autoincrement())
+  name        String   // 프록시 서버 이름 (예: mobilemanager)
+  targetUrl   String   // 목표 서버 URL (예: https://mobilemanager.com)
+  description String?  // 설명
+  isActive    Boolean  @default(true) // 활성화 여부
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Mock API와의 관계
+  mockApis ProxyMockApi[]
+
+  @@unique([name])
+  @@map("proxy_servers")
+}
+
+// 프록시 Mock API 모델
+model ProxyMockApi {
+  id            Int      @id @default(autoincrement())
+  proxyServerId Int      // ProxyServer 테이블의 외래키
+  path          String   // API 경로 (예: /xxx/yyy)
+  method        String   // HTTP 메서드
+  apiName       String   // API 이름
+  requestSpec   Json?    // 요청 스펙
+  responseSpec  Json?    // 응답 스펙
+  mockData      Json?    // Mock 데이터
+  delayMs       Int      @default(0) // 응답 지연 시간
+  errorCode     Int?     // 에러 코드
+  isActive      Boolean  @default(true) // 활성화 여부
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // ProxyServer와의 관계
+  proxyServer ProxyServer @relation(fields: [proxyServerId], references: [id], onDelete: Cascade)
+
+  @@unique([proxyServerId, path, method])
+  @@map("proxy_mock_apis")
 }
