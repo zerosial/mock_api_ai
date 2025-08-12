@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // 프록시 경로는 제외 (프록시 라우트에서 직접 CORS 처리)
+  if (request.nextUrl.pathname.startsWith("/api/proxy/")) {
+    return NextResponse.next();
+  }
+
   // API 경로에 대해서만 CORS 헤더 추가
   if (request.nextUrl.pathname.startsWith("/api/")) {
     // Preflight 요청 처리
@@ -9,7 +14,7 @@ export function middleware(request: NextRequest) {
       response.headers.set("Access-Control-Allow-Origin", "*");
       response.headers.set(
         "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS"
+        "GET, POST, PUT, DELETE, PATCH, OPTIONS"
       );
       response.headers.set(
         "Access-Control-Allow-Headers",
@@ -24,7 +29,7 @@ export function middleware(request: NextRequest) {
     response.headers.set("Access-Control-Allow-Origin", "*");
     response.headers.set(
       "Access-Control-Allow-Methods",
-      "GET, POST, PUT, DELETE, OPTIONS"
+      "GET, POST, PUT, DELETE, PATCH, OPTIONS"
     );
     response.headers.set(
       "Access-Control-Allow-Headers",
