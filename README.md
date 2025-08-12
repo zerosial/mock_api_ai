@@ -1,200 +1,112 @@
-# Mock API AI
+# AI API 생성기
 
-AI 기반 Mock API 생성 및 관리 플랫폼
+AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션입니다.
 
-## 🚀 빠른 시작
+## 주요 기능
 
-### Docker를 사용한 배포 (권장)
+### 1. Mock API 생성
 
-```bash
-# 1. 환경 변수 설정
-cp env.sample .env
-# .env 파일에서 OPENAI_API_KEY 설정
+- **랜덤 값 생성**: AI가 자동으로 Mock 데이터를 생성
+- **커스텀 값 생성**: 사용자가 지정한 값으로 Mock 데이터 생성
+- **JSON 직접 입력**: JSON 형식으로 Mock 데이터 직접 입력
 
-# 2. Docker Compose로 전체 스택 실행
-docker-compose up -d
+### 2. 프록시 서버 기능 (신규!)
 
-# 3. 데이터베이스 마이그레이션
-docker-compose exec app npx prisma db push
+- **CORS 문제 해결**: 외부 API를 프록시하여 CORS 에러 방지
+- **Mock API 혼합**: 프록시 서버에 Mock API 추가 가능
+- **자동 라우팅**: Mock API가 있으면 Mock 데이터, 없으면 실제 서버로 프록시
 
-# 4. 애플리케이션 접속
-# http://localhost:3000
-```
+### 3. API 관리
 
-### 개발 환경 설정
+- **지연 시간 설정**: API 응답 지연 시간 설정 (0-30초)
+- **에러 코드 설정**: 특정 HTTP 에러 코드 반환 설정
+- **실시간 테스트**: 생성된 API를 즉시 테스트 가능
+- **JSON 편집**: 응답 데이터를 실시간으로 편집 가능
 
-```bash
-# 1. 개발용 데이터베이스만 실행
-docker-compose -f docker-compose.dev.yml up -d
+## 사용법
 
-# 2. 의존성 설치
-npm install
+### Mock API 생성
 
-# 3. Prisma 클라이언트 생성
-npx prisma generate
+1. 메인 페이지에서 원하는 생성 방식을 선택
+2. API 이름, 메서드, URL, 필드 정보 입력
+3. AI가 자동으로 Mock 데이터 생성
+4. 생성된 API를 테스트하고 편집
 
-# 4. 개발 서버 실행
-npm run dev
-```
+### 프록시 서버 사용
 
-## 📁 프로젝트 구조
+1. **프록시 서버 생성**
 
-```
-mock-api-ai/
-├── app/                    # Next.js 애플리케이션
-├── prisma/                 # Prisma 스키마
-│   └── schema.prisma
-├── lib/                    # 유틸리티
-│   ├── generated/prisma/   # 생성된 Prisma 클라이언트
-│   └── prisma.ts          # Prisma 유틸리티
-├── docker-compose.yml      # 프로덕션 Docker 설정
-├── docker-compose.dev.yml  # 개발용 Docker 설정
-├── Dockerfile              # Next.js Docker 설정
-└── docs/
-    └── docker-deployment-guide.md
-```
+   - `/proxy` 페이지에서 새 프록시 서버 생성
+   - 프록시 서버 이름과 목표 URL 설정
+   - 예: `mobilemanager` → `https://mobilemanager.com`
 
-## 🛠 기술 스택
+2. **Mock API 추가**
 
-- **Frontend**: Next.js 15, React 19, TypeScript
+   - 프록시 서버에 Mock API 추가
+   - 특정 경로에 대한 Mock 데이터 설정
+   - 예: `/users/{id}` 경로에 사용자 정보 Mock 데이터
+
+3. **프록시 사용**
+   - `/api/proxy/mobilemanager/users/123` 접속
+   - Mock API가 있으면 Mock 데이터 반환
+   - Mock API가 없으면 `https://mobilemanager.com/users/123`으로 프록시
+
+## 기술 스택
+
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
-- **Database**: PostgreSQL (Docker)
-- **ORM**: Prisma
-- **AI**: OpenAI API
-- **Styling**: Tailwind CSS
-- **Deployment**: Docker, Docker Compose
+- **Database**: PostgreSQL (Prisma ORM)
+- **AI**: OpenAI GPT-4
+- **Deployment**: Vercel
 
-## 📊 데이터베이스 스키마
+## 설치 및 실행
 
-### Template 모델
-
-- API 템플릿 정보 저장
-- AI가 생성한 API 스펙과 코드 관리
-- 프로젝트별, 사용자별 API 관리
-
-### ApiLog 모델
-
-- API 호출 기록 저장
-- 요청/응답 데이터, 성능 메트릭 추적
-
-## 🔧 개발 명령어
+### 1. 의존성 설치
 
 ```bash
-# 개발 서버 실행
+npm install
+```
+
+### 2. 환경 변수 설정
+
+`.env` 파일을 생성하고 다음 변수들을 설정하세요:
+
+```env
+DATABASE_URL="your_postgresql_connection_string"
+OPENAI_API_KEY="your_openai_api_key"
+```
+
+### 3. 데이터베이스 마이그레이션
+
+```bash
+npx prisma migrate dev
+```
+
+### 4. 개발 서버 실행
+
+```bash
 npm run dev
-
-# 프로덕션 빌드
-npm run build
-
-# 프로덕션 서버 실행
-npm start
-
-# 린트 검사
-npm run lint
-
-# Prisma 관련 명령어
-npx prisma generate    # 클라이언트 생성
-npx prisma db push     # 스키마 적용
-npx prisma studio      # 데이터베이스 GUI
 ```
 
-## 🐳 Docker 명령어
+## 프로젝트 구조
 
-```bash
-# 전체 스택 실행
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f
-
-# 특정 서비스 로그
-docker-compose logs -f app
-docker-compose logs -f db
-
-# 컨테이너 중지
-docker-compose down
-
-# 볼륨까지 삭제
-docker-compose down -v
-
-# 개발용 데이터베이스만 실행
-docker-compose -f docker-compose.dev.yml up -d
+```
+app/
+├── api/                    # API 라우트
+│   ├── generate/          # Mock API 생성
+│   ├── proxy/             # 프록시 서버 관련 API
+│   └── templates/         # 템플릿 관리
+├── create/                # Mock API 생성 페이지
+├── create-custom/         # 커스텀 Mock API 생성
+├── create-json/           # JSON으로 API 생성
+├── proxy/                 # 프록시 서버 관리
+│   ├── [proxyName]/       # 특정 프록시 서버
+│   │   ├── create/        # Mock API 생성
+│   │   └── apis/          # Mock API 목록
+│   └── page.tsx           # 프록시 서버 목록
+└── page.tsx               # 메인 페이지
 ```
 
-## 📝 환경 변수
+## 라이센스
 
-```bash
-# .env
-DATABASE_URL="postgresql://postgres:postgres@db:5432/mock_api_ai"
-OPENAI_API_KEY="your-openai-api-key"
-NODE_ENV="production"
-```
-
-## 🔍 모니터링
-
-### 로그 확인
-
-```bash
-# 실시간 로그
-docker-compose logs -f
-
-# 특정 서비스 로그
-docker-compose logs -f app
-```
-
-### 데이터베이스 접속
-
-```bash
-# PostgreSQL 컨테이너 접속
-docker-compose exec db psql -U postgres -d mock_api_ai
-
-# Prisma Studio 실행
-docker-compose exec app npx prisma studio
-```
-
-## 🚀 배포
-
-### 자동 배포 스크립트
-
-```bash
-# 배포 실행
-./deploy.sh
-```
-
-### 수동 배포
-
-```bash
-# 1. 코드 업데이트
-git pull origin main
-
-# 2. 컨테이너 재빌드
-docker-compose build --no-cache
-
-# 3. 서비스 재시작
-docker-compose up -d
-
-# 4. 마이그레이션 실행
-docker-compose exec app npx prisma db push
-```
-
-## 📚 문서
-
-- [Docker 배포 가이드](./docs/docker-deployment-guide.md) - 상세한 Docker 배포 과정
-- [프로젝트 문서](./project.md) - 프로젝트 상세 정보
-- [기술 문서](./tech.md) - 기술 스택 상세 정보
-
-## 🤝 기여
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
-
-## 📞 지원
-
-문제가 있거나 질문이 있으시면 이슈를 생성해주세요.
+MIT License
