@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
 import { prisma } from "@/lib/prisma";
+import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -23,6 +24,27 @@ export async function POST(req: NextRequest) {
       user,
       mockData, // 사용자가 지정한 값들
     } = await req.json();
+
+    // 예약된 프로젝트명/사용자명 검증
+    if (isReservedProjectName(project)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `'${project}'은(는) 예약된 프로젝트명입니다. 다른 이름을 사용해주세요.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (isReservedUserName(user)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `'${user}'은(는) 예약된 사용자명입니다. 다른 이름을 사용해주세요.`,
+        },
+        { status: 400 }
+      );
+    }
 
     // 응답 필드를 객체로 변환 (사용자가 지정한 값이 있으면 그 값을 사용, 없으면 타입 사용)
     const responseObject: Record<string, any> = {};
