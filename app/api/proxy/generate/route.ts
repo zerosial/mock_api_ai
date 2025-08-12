@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // 프록시 서버 존재 확인
     const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyServerName }
+      where: { name: proxyServerName },
     });
 
     if (!proxyServer) {
@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
       typeof mockData === "object" &&
       Object.keys(mockData).length > 0
     ) {
+      // Mock 데이터가 있으면 그대로 사용
       Object.assign(responseObject, mockData);
-    } else {
+      console.log("🎭 Mock 데이터 사용:", mockData);
+    } else if (responseFields && responseFields.length > 0) {
+      // Mock 데이터가 없고 응답 필드가 있으면 필드 기반으로 생성
       responseFields.forEach((field: Field) => {
         const mockValue = mockData && mockData[field.name];
 
@@ -54,21 +57,49 @@ export async function POST(req: NextRequest) {
           responseObject[field.name] = field.type;
         }
       });
+      console.log("📝 응답 필드 기반 Mock 데이터 생성:", responseObject);
+    } else {
+      // 둘 다 없으면 기본 응답
+      responseObject.message = "Mock API 응답";
+      console.log("⚠️ Mock 데이터와 응답 필드가 없어 기본 응답 사용");
     }
 
     // OpenAI API를 사용하여 OpenAPI 스펙 생성
-    const prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
+    let prompt: string;
+
+    if (
+      mockData &&
+      typeof mockData === "object" &&
+      Object.keys(mockData).length > 0
+    ) {
+      // Mock 데이터가 있으면 Mock 데이터 기반으로 스펙 생성
+      prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
 
 API 이름: ${apiName}
 메서드: ${method}
 경로: ${path}
-요청 필드: ${JSON.stringify(requestFields)}
-응답 필드: ${JSON.stringify(responseFields)}
+요청 필드: ${JSON.stringify(requestFields || [])}
+Mock 응답 데이터: ${JSON.stringify(mockData)}
+
+요구사항: 
+- summary, parameters, requestBody, responses 항목을 포함해야 합니다.
+- Mock 응답 데이터를 기반으로 200 응답의 예제 값을 포함해야 합니다.
+- JSON 형식으로만 응답해주세요.`;
+    } else {
+      // 응답 필드 기반으로 스펙 생성
+      prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
+
+API 이름: ${apiName}
+메서드: ${method}
+경로: ${path}
+요청 필드: ${JSON.stringify(requestFields || [])}
+응답 필드: ${JSON.stringify(responseFields || [])}
 
 요구사항: 
 - summary, parameters, requestBody, responses 항목을 포함해야 합니다.
 - 200 응답의 예제 값을 포함해야 합니다.
 - JSON 형식으로만 응답해주세요.`;
+    }
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4.1-nano",
@@ -150,4 +181,4 @@ API 이름: ${apiName}
       { status: 500 }
     );
   }
-} 
+}

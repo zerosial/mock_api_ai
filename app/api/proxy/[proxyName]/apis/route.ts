@@ -3,14 +3,14 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { proxyName: string } }
+  { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
-    const { proxyName } = params;
+    const { proxyName } = await params;
 
     // 프록시 서버 존재 확인
     const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyName, isActive: true }
+      where: { name: proxyName, isActive: true },
     });
 
     if (!proxyServer) {
@@ -24,9 +24,9 @@ export async function GET(
     const mockApis = await prisma.proxyMockApi.findMany({
       where: {
         proxyServerId: proxyServer.id,
-        isActive: true
+        isActive: true,
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: "desc" },
     });
 
     return NextResponse.json(mockApis);
@@ -37,4 +37,4 @@ export async function GET(
       { status: 500 }
     );
   }
-} 
+}
