@@ -374,7 +374,7 @@ export default function ProxyMockApisPage() {
                             {getTestResult(mockApi)?.error}
                           </div>
                         )}
-                        {getTestResult(mockApi)?.data && (
+                        {getTestResult(mockApi)?.data !== undefined && (
                           <div>
                             <pre className="text-xs bg-gray-100 p-1 rounded overflow-x-auto">
                               {(() => {

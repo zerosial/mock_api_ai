@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("프록시 서버 생성 오류:", error);
     
-    if (error.code === 'P2002') {
+    // Check if error is a Prisma error with code property
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
       return NextResponse.json(
         { error: "이미 존재하는 프록시 서버 이름입니다." },
         { status: 409 }
