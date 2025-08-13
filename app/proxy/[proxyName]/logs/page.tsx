@@ -40,6 +40,9 @@ export default function ProxyLogsPage() {
 
   const [proxyServer, setProxyServer] = useState<ProxyServer | null>(null);
   const [routeGroups, setRouteGroups] = useState<RouteGroup[]>([]);
+  const [filteredRouteGroups, setFilteredRouteGroups] = useState<RouteGroup[]>(
+    []
+  );
   const [selectedRoute, setSelectedRoute] = useState<{
     path: string;
     method: string;
@@ -49,12 +52,44 @@ export default function ProxyLogsPage() {
   const [logsLoading, setLogsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 검색 및 필터 상태
+  const [searchPath, setSearchPath] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState<string>("ALL");
+
+  const httpMethods = [
+    { value: "ALL", label: "전체", color: "bg-gray-100 text-gray-800" },
+    { value: "GET", label: "GET", color: "bg-green-100 text-green-800" },
+    { value: "POST", label: "POST", color: "bg-blue-100 text-blue-800" },
+    { value: "PUT", label: "PUT", color: "bg-yellow-100 text-yellow-800" },
+    { value: "DELETE", label: "DELETE", color: "bg-red-100 text-red-800" },
+    { value: "PATCH", label: "PATCH", color: "bg-purple-100 text-purple-800" },
+  ];
+
   useEffect(() => {
     if (proxyName) {
       fetchProxyServer();
       fetchRouteGroups();
     }
   }, [proxyName]);
+
+  // 검색 및 필터링 적용
+  useEffect(() => {
+    let filtered = routeGroups;
+
+    // 경로 검색 필터
+    if (searchPath.trim()) {
+      filtered = filtered.filter((route) =>
+        route.path.toLowerCase().includes(searchPath.toLowerCase())
+      );
+    }
+
+    // HTTP 메서드 필터
+    if (selectedMethod !== "ALL") {
+      filtered = filtered.filter((route) => route.method === selectedMethod);
+    }
+
+    setFilteredRouteGroups(filtered);
+  }, [routeGroups, searchPath, selectedMethod]);
 
   const fetchProxyServer = async () => {
     try {
@@ -123,6 +158,44 @@ export default function ProxyLogsPage() {
   const closeRouteLogs = () => {
     setSelectedRoute(null);
     setRouteLogs([]);
+  };
+
+  // 통신 로그를 기반으로 Mock API 생성
+  const createMockApiFromLog = async (log: CommunicationLog) => {
+    try {
+      const response = await fetch("/api/proxy/mock/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          proxyServerName: proxyName,
+          path: log.path,
+          method: log.method,
+          requestBody: log.requestBody,
+          responseBody: log.responseBody,
+          statusCode: log.statusCode,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert("Mock API가 성공적으로 생성되었습니다!");
+
+        // Mock API 목록 페이지로 이동
+        window.location.href = `/proxy/${proxyName}/apis`;
+      } else {
+        throw new Error(result.error || "Mock API 생성에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Mock API 생성 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Mock API 생성 중 오류가 발생했습니다."
+      );
+    }
   };
 
   // JSON 데이터를 깔끔하게 파싱하고 포맷팅
@@ -217,6 +290,64 @@ export default function ProxyLogsPage() {
             </p>
           </div>
 
+          {/* 검색 및 필터 */}
+          <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* 경로 검색 */}
+              <div className="flex-1">
+                <label
+                  htmlFor="search-path"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  경로 검색
+                </label>
+                <input
+                  type="text"
+                  id="search-path"
+                  value={searchPath}
+                  onChange={(e) => setSearchPath(e.target.value)}
+                  placeholder="예: /api/product/v2"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+              </div>
+
+              {/* HTTP 메서드 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  HTTP 메서드
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {httpMethods.map((method) => (
+                    <button
+                      key={method.value}
+                      onClick={() => setSelectedMethod(method.value)}
+                      className={`px-3 py-2 text-xs font-medium rounded-md border transition-colors ${
+                        selectedMethod === method.value
+                          ? `${method.color} border-gray-300`
+                          : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {method.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 검색 결과 요약 */}
+            {searchPath || selectedMethod !== "ALL" ? (
+              <div className="mt-3 text-sm text-gray-600">
+                검색 결과: {filteredRouteGroups.length}개 라우트
+                {searchPath && (
+                  <span className="ml-2">(경로: &quot;{searchPath}&quot;)</span>
+                )}
+                {selectedMethod !== "ALL" && (
+                  <span className="ml-2">(메서드: {selectedMethod})</span>
+                )}
+              </div>
+            ) : null}
+          </div>
+
           {loading ? (
             <div className="px-4 py-5 sm:px-6">
               <div className="animate-pulse space-y-4">
@@ -232,7 +363,7 @@ export default function ProxyLogsPage() {
                 ))}
               </div>
             </div>
-          ) : routeGroups.length === 0 ? (
+          ) : filteredRouteGroups.length === 0 ? (
             <div className="px-4 py-5 sm:px-6 text-center">
               <div className="text-gray-400 mb-4">
                 <svg
@@ -256,7 +387,7 @@ export default function ProxyLogsPage() {
             </div>
           ) : (
             <ul className="divide-y divide-gray-200">
-              {routeGroups.map((route, index) => (
+              {filteredRouteGroups.map((route, index) => (
                 <li
                   key={index}
                   className="px-4 py-4 sm:px-6 hover:bg-gray-50 cursor-pointer"
@@ -269,10 +400,17 @@ export default function ProxyLogsPage() {
                       <div className="flex-shrink-0">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            route.lastStatusCode >= 200 &&
-                            route.lastStatusCode < 300
+                            route.method === "GET"
                               ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
+                              : route.method === "POST"
+                              ? "bg-blue-100 text-blue-800"
+                              : route.method === "PUT"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : route.method === "DELETE"
+                              ? "bg-red-100 text-red-800"
+                              : route.method === "PATCH"
+                              ? "bg-purple-100 text-purple-800"
+                              : "bg-gray-100 text-gray-800"
                           }`}
                         >
                           {route.method}
@@ -281,9 +419,6 @@ export default function ProxyLogsPage() {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
                           {route.path}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          총 {route.count}회 통신
                         </div>
                         <div className="text-xs text-gray-400 mt-1">
                           마지막 통신:{" "}
@@ -376,7 +511,21 @@ export default function ProxyLogsPage() {
                           >
                             {log.isMock ? "Mock" : "Proxy"}
                           </span>
-                          <span className="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800">
+                          <span
+                            className={`px-2 py-1 text-xs font-medium rounded ${
+                              log.method === "GET"
+                                ? "bg-green-100 text-green-800"
+                                : log.method === "POST"
+                                ? "bg-blue-100 text-blue-800"
+                                : log.method === "PUT"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : log.method === "DELETE"
+                                ? "bg-red-100 text-red-800"
+                                : log.method === "PATCH"
+                                ? "bg-purple-100 text-purple-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
                             {log.method}
                           </span>
                           <span className="text-sm font-medium text-gray-900">
@@ -430,17 +579,29 @@ export default function ProxyLogsPage() {
 
                       {/* 메타데이터 */}
                       <div className="mt-3 pt-3 border-t border-gray-200">
-                        {log.userAgent && (
-                          <div className="text-xs text-gray-500 mb-1">
-                            <strong>User-Agent:</strong> {log.userAgent}
-                          </div>
-                        )}
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            {log.userAgent && (
+                              <div className="text-xs text-gray-500 mb-1">
+                                <strong>User-Agent:</strong> {log.userAgent}
+                              </div>
+                            )}
 
-                        {log.ipAddress && (
-                          <div className="text-xs text-gray-500">
-                            <strong>IP:</strong> {log.ipAddress}
+                            {log.ipAddress && (
+                              <div className="text-xs text-gray-500">
+                                <strong>IP:</strong> {log.ipAddress}
+                              </div>
+                            )}
                           </div>
-                        )}
+
+                          {/* Mock API 생성 버튼 */}
+                          <button
+                            onClick={() => createMockApiFromLog(log)}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-green-100 text-green-800 hover:bg-green-200 transition-colors"
+                          >
+                            ➕ Mock API 생성
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}

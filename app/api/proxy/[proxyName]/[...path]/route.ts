@@ -174,14 +174,12 @@ async function handleProxyRequest(
             statusCode,
             responseTime,
             userAgent: req.headers.get("user-agent"),
-            ipAddress:
-              req.headers.get("x-forwarded-for") ||
-              req.headers.get("x-real-ip"),
+            ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
             isMock: true,
           },
         });
       } catch (logError) {
-        console.error("Mock API 통신 로그 저장 실패:", logError);
+        console.error("통신 로그 저장 실패:", logError);
       }
 
       if (statusCode !== 200) {
