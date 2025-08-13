@@ -69,6 +69,8 @@ model ProxyServer {
 
   // Mock API와의 관계
   mockApis ProxyMockApi[]
+  // 통신 로그와의 관계
+  communicationLogs ProxyCommunicationLog[]
 
   @@unique([name])
   @@map("proxy_servers")
@@ -95,4 +97,27 @@ model ProxyMockApi {
 
   @@unique([proxyServerId, path, method])
   @@map("proxy_mock_apis")
+}
+
+// 프록시 통신 로그 모델
+model ProxyCommunicationLog {
+  id            Int      @id @default(autoincrement())
+  proxyServerId Int      // ProxyServer 테이블의 외래키
+  path          String   // API 경로 (예: /user/list)
+  method        String   // HTTP 메서드
+  requestBody   Json?    // 요청 본문
+  responseBody  Json?    // 응답 본문
+  statusCode    Int      // HTTP 상태 코드
+  responseTime  Int      // 응답 시간 (ms)
+  userAgent     String?  // 사용자 에이전트
+  ipAddress     String?  // IP 주소
+  isMock        Boolean  @default(false) // Mock API 사용 여부
+  createdAt     DateTime @default(now())
+
+  // ProxyServer와의 관계
+  proxyServer ProxyServer @relation(fields: [proxyServerId], references: [id], onDelete: Cascade)
+
+  // 인덱스 추가로 성능 최적화
+  @@index([proxyServerId, path, method, createdAt])
+  @@map("proxy_communication_logs")
 }

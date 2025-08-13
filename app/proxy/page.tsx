@@ -358,6 +358,14 @@ export default function ProxyPage() {
                           📋 URL 복사
                         </button>
 
+                        {/* 전체 통신 로그 조회 버튼 */}
+                        <Link
+                          href={`/proxy/${proxy.name}/logs`}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                        >
+                          📊 통신 로그
+                        </Link>
+
                         {/* Mock API 생성 버튼 */}
                         <Link
                           href={`/proxy/${proxy.name}/create`}
