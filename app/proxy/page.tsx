@@ -26,6 +26,7 @@ export default function ProxyPage() {
     description: "",
   });
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   useEffect(() => {
     fetchProxyServers();
@@ -104,6 +105,46 @@ export default function ProxyPage() {
       .catch(() => {
         alert("클립보드 복사에 실패했습니다.");
       });
+  };
+
+  const deleteProxyServer = async (proxyName: string, proxyId: number) => {
+    if (
+      !confirm(
+        `정말로 프록시 서버 "${proxyName}"을(를) 삭제하시겠습니까?\n\n⚠️ 주의: 이 작업은 되돌릴 수 없으며, 관련된 모든 Mock API와 통신 로그가 함께 삭제됩니다.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setDeleting(proxyId);
+      const response = await fetch(`/api/proxy/${proxyName}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "프록시 서버 삭제에 실패했습니다.");
+      }
+
+      const result = await response.json();
+
+      // 목록 새로고침
+      await fetchProxyServers();
+
+      alert(
+        `프록시 서버 "${proxyName}"이(가) 성공적으로 삭제되었습니다.\n\n삭제된 데이터:\n- Mock API: ${result.deletedData.mockApis}개\n- 통신 로그: ${result.deletedData.communicationLogs}개`
+      );
+    } catch (error) {
+      console.error("프록시 서버 삭제 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "프록시 서버 삭제 중 오류가 발생했습니다."
+      );
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -358,12 +399,12 @@ export default function ProxyPage() {
                           📋 URL 복사
                         </button>
 
-                        {/* Mock API 생성 버튼 */}
+                        {/* 전체 통신 로그 조회 버튼 */}
                         <Link
-                          href={`/proxy/${proxy.name}/create`}
-                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 hover:bg-green-200"
+                          href={`/proxy/${proxy.name}/logs`}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                         >
-                          ➕ Mock API
+                          📊 통신 로그
                         </Link>
 
                         {/* Mock API 목록 버튼 */}
@@ -371,8 +412,24 @@ export default function ProxyPage() {
                           href={`/proxy/${proxy.name}/apis`}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
                         >
-                          📋 API 목록
+                          📋 MOCK API 목록
                         </Link>
+
+                        {/* 프록시 서버 삭제 버튼 */}
+                        <button
+                          onClick={() =>
+                            deleteProxyServer(proxy.name, proxy.id)
+                          }
+                          disabled={deleting === proxy.id}
+                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded transition-colors ${
+                            deleting === proxy.id
+                              ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                          title="프록시 서버와 관련 데이터 모두 삭제"
+                        >
+                          {deleting === proxy.id ? "삭제 중..." : "🗑️ 삭제"}
+                        </button>
                       </div>
                     </div>
                   </div>

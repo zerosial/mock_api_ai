@@ -41,6 +41,8 @@ async function handleProxyRequest(
   params: { proxyName: string; path: string[] },
   method: string
 ) {
+  const startTime = Date.now();
+
   try {
     const { proxyName, path } = params;
     const fullPath = `/${path.join("/")}`;
@@ -130,8 +132,14 @@ async function handleProxyRequest(
         : "찾을 수 없음"
     );
 
+    let isMock = false;
+    let responseData: any = null;
+    let statusCode = 200;
+    let responseTime = 0;
+
     if (mockApi) {
       console.log(`🎭 Mock API 발견: ${fullPath} (${method})`);
+      isMock = true;
 
       // 지연 시간 처리
       if (mockApi.delayMs && mockApi.delayMs > 0) {
@@ -142,24 +150,55 @@ async function handleProxyRequest(
       // 에러 코드 처리
       if (mockApi.errorCode && mockApi.errorCode > 0) {
         console.log(`❌ 에러 코드: ${mockApi.errorCode}`);
-        return NextResponse.json(
-          { error: "Mock API 에러", code: mockApi.errorCode },
-          {
-            status: mockApi.errorCode,
-            headers: {
-              "Access-Control-Allow-Origin": "*",
-              "Access-Control-Allow-Methods":
-                "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD",
-              "Access-Control-Allow-Headers": "*",
-              "Access-Control-Max-Age": "86400",
-              "Access-Control-Allow-Credentials": "true",
-            },
-          }
-        );
+        statusCode = mockApi.errorCode;
+        responseData = {
+          error: "Mock API 에러",
+          code: mockApi.errorCode,
+        };
+      } else {
+        console.log(`📤 Mock 데이터 반환:`, mockApi.mockData);
+        responseData = mockApi.mockData || {};
       }
 
-      console.log(`📤 Mock 데이터 반환:`, mockApi.mockData);
-      return NextResponse.json(mockApi.mockData || {}, {
+      responseTime = Date.now() - startTime;
+
+      // Mock API 응답 시 통신 로그 저장
+      try {
+        await prisma.proxyCommunicationLog.create({
+          data: {
+            proxyServerId: proxyServer.id,
+            path: fullPath,
+            method: method.toUpperCase(),
+            requestBody: await getRequestBody(req),
+            responseBody: responseData,
+            statusCode,
+            responseTime,
+            userAgent: req.headers.get("user-agent"),
+            ipAddress:
+              req.headers.get("x-forwarded-for") ||
+              req.headers.get("x-real-ip"),
+            isMock: true,
+          },
+        });
+      } catch (logError) {
+        console.error("통신 로그 저장 실패:", logError);
+      }
+
+      if (statusCode !== 200) {
+        return NextResponse.json(responseData, {
+          status: statusCode,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods":
+              "GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+            "Access-Control-Allow-Credentials": "true",
+          },
+        });
+      }
+
+      return NextResponse.json(responseData, {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods":
@@ -264,7 +303,7 @@ async function handleProxyRequest(
     });
 
     // 응답 본문 처리
-    let responseBody: string | ArrayBuffer | null = null;
+    let responseBody: string | null = null;
     const contentType = proxyResponse.headers.get("content-type") || "";
 
     if (
@@ -280,13 +319,42 @@ async function handleProxyRequest(
       contentType.includes("image/") ||
       contentType.includes("application/")
     ) {
-      // 바이너리 응답
-      responseBody = await proxyResponse.arrayBuffer();
-      console.log(`📄 응답 본문 (바이너리): ${responseBody.byteLength} bytes`);
+      // 바이너리 응답 - JSON으로 저장할 수 있도록 메타데이터만 저장
+      const arrayBuffer = await proxyResponse.arrayBuffer();
+      responseBody = JSON.stringify({
+        type: "binary",
+        size: arrayBuffer.byteLength,
+        contentType: contentType,
+        note: "Binary response - content not stored",
+      });
+      console.log(`📄 응답 본문 (바이너리): ${arrayBuffer.byteLength} bytes`);
     } else {
       // 기본적으로 텍스트로 처리
       responseBody = await proxyResponse.text();
       console.log(`📄 응답 본문 (기본): ${responseBody.substring(0, 200)}...`);
+    }
+
+    responseTime = Date.now() - startTime;
+
+    // 프록시 응답 시 통신 로그 저장
+    try {
+      await prisma.proxyCommunicationLog.create({
+        data: {
+          proxyServerId: proxyServer.id,
+          path: fullPath,
+          method: method.toUpperCase(),
+          requestBody: await getRequestBody(req),
+          responseBody: responseBody,
+          statusCode: proxyResponse.status,
+          responseTime,
+          userAgent: req.headers.get("user-agent"),
+          ipAddress:
+            req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
+          isMock: false,
+        },
+      });
+    } catch (logError) {
+      console.error("프록시 통신 로그 저장 실패:", logError);
     }
 
     // 프록시 응답 반환
@@ -357,4 +425,30 @@ export async function OPTIONS(
       "Access-Control-Allow-Credentials": "true",
     },
   });
+}
+
+// 요청 본문을 가져오는 헬퍼 함수
+async function getRequestBody(req: NextRequest): Promise<any> {
+  try {
+    const contentType = req.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+      return await req.json();
+    } else if (contentType.includes("application/x-www-form-urlencoded")) {
+      const text = await req.text();
+      const params = new URLSearchParams(text);
+      const result: any = {};
+      params.forEach((value, key) => {
+        result[key] = value;
+      });
+      return result;
+    } else if (contentType.includes("multipart/form-data")) {
+      return { type: "multipart/form-data", size: "binary" };
+    } else {
+      const text = await req.text();
+      return text || null;
+    }
+  } catch {
+    return null;
+  }
 }

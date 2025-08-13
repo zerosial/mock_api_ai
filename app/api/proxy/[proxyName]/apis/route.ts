@@ -24,7 +24,7 @@ export async function GET(
     const mockApis = await prisma.proxyMockApi.findMany({
       where: {
         proxyServerId: proxyServer.id,
-        isActive: true,
+        // isActive 상태와 관계없이 모든 Mock API 조회
       },
       orderBy: { createdAt: "desc" },
     });
