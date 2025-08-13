@@ -31,10 +31,15 @@ export async function PATCH(req: NextRequest) {
       },
     });
 
+    const statusText =
+      delayValue === 0
+        ? "지연 시간이 제거되었습니다. 정상 응답으로 설정됩니다."
+        : `지연 시간이 ${delayValue}ms로 설정되었습니다.`;
+
     return NextResponse.json(
       {
         success: true,
-        message: `지연 시간이 ${delayValue}ms로 설정되었습니다.`,
+        message: statusText,
         mockApi: updatedMockApi,
       },
       { status: 200 }

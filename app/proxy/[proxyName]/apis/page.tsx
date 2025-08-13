@@ -56,6 +56,12 @@ export default function ProxyMockApisPage() {
   const [updatingErrorCode, setUpdatingErrorCode] = useState<number | null>(
     null
   );
+  const [editingResponse, setEditingResponse] = useState<number | null>(null);
+  const [responseEditValue, setResponseEditValue] = useState<string>("");
+  const [updatingResponse, setUpdatingResponse] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState<number | null>(null);
+  const [nameEditValue, setNameEditValue] = useState<string>("");
+  const [updatingName, setUpdatingName] = useState<number | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -318,22 +324,40 @@ export default function ProxyMockApisPage() {
   const setErrorCode = async (mockApiId: number) => {
     try {
       setUpdatingErrorCode(mockApiId);
-      const errorCode = errorCodeValue === "" ? null : parseInt(errorCodeValue);
 
-      if (
-        errorCode !== null &&
-        (isNaN(errorCode) || errorCode < 100 || errorCode > 599)
-      ) {
-        alert("에러코드는 100-599 사이의 HTTP 상태 코드여야 합니다.");
-        return;
+      // 디버깅을 위한 로그
+      console.log("에러코드 설정 시작:", {
+        mockApiId,
+        errorCodeValue,
+        type: typeof errorCodeValue,
+      });
+
+      // 빈 문자열이면 null로 처리, 아니면 숫자로 변환
+      let finalErrorCode: number | null = null;
+
+      // 입력값이 있고, 공백이 아닐 때만 처리
+      if (errorCodeValue && errorCodeValue.trim() !== "") {
+        const parsedErrorCode = parseInt(errorCodeValue);
+        if (
+          isNaN(parsedErrorCode) ||
+          parsedErrorCode < 100 ||
+          parsedErrorCode > 599
+        ) {
+          alert("에러코드는 100-599 사이의 HTTP 상태 코드여야 합니다.");
+          return;
+        }
+        finalErrorCode = parsedErrorCode;
       }
+      // errorCodeValue가 빈 문자열이면 finalErrorCode는 null (정상 응답)
+
+      console.log("최종 에러코드:", finalErrorCode);
 
       const response = await fetch("/api/proxy/mock/error-code", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ mockApiId, errorCode }),
+        body: JSON.stringify({ mockApiId, errorCode: finalErrorCode }),
       });
 
       const result = await response.json();
@@ -343,7 +367,7 @@ export default function ProxyMockApisPage() {
         // 목록 업데이트
         setMockApis((prev) =>
           prev.map((api) =>
-            api.id === mockApiId ? { ...api, errorCode: errorCode } : api
+            api.id === mockApiId ? { ...api, errorCode: finalErrorCode } : api
           )
         );
         setErrorCodeModalOpen(null);
@@ -373,6 +397,129 @@ export default function ProxyMockApisPage() {
   const openErrorCodeModal = (mockApi: ProxyMockApi) => {
     setErrorCodeModalOpen(mockApi.id);
     setErrorCodeValue(mockApi.errorCode?.toString() || "");
+  };
+
+  // 응답 데이터 수정 시작
+  const startResponseEdit = (mockApi: ProxyMockApi) => {
+    setEditingResponse(mockApi.id);
+    setResponseEditValue(formatJson(mockApi.mockData));
+  };
+
+  // 응답 데이터 수정 취소
+  const cancelResponseEdit = () => {
+    setEditingResponse(null);
+    setResponseEditValue("");
+  };
+
+  // 응답 데이터 수정 저장
+  const saveResponseEdit = async (mockApiId: number) => {
+    try {
+      setUpdatingResponse(mockApiId);
+
+      // JSON 유효성 검사
+      let parsedData: unknown;
+      try {
+        parsedData = JSON.parse(responseEditValue);
+      } catch (error) {
+        alert("올바른 JSON 형식이 아닙니다. JSON 형식을 확인해주세요.");
+        return;
+      }
+
+      const response = await fetch("/api/proxy/mock/update-response", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockApiId, mockData: parsedData }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert("응답 데이터가 성공적으로 수정되었습니다.");
+        // 목록 업데이트
+        setMockApis((prev) =>
+          prev.map((api) =>
+            api.id === mockApiId
+              ? { ...api, mockData: parsedData as Record<string, unknown> }
+              : api
+          )
+        );
+        setEditingResponse(null);
+        setResponseEditValue("");
+      } else {
+        throw new Error(result.error || "응답 데이터 수정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("응답 데이터 수정 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "응답 데이터 수정 중 오류가 발생했습니다."
+      );
+    } finally {
+      setUpdatingResponse(null);
+    }
+  };
+
+  // 제목 수정 시작
+  const startNameEdit = (mockApi: ProxyMockApi) => {
+    setEditingName(mockApi.id);
+    setNameEditValue(mockApi.apiName);
+  };
+
+  // 제목 수정 취소
+  const cancelNameEdit = () => {
+    setEditingName(null);
+    setNameEditValue("");
+  };
+
+  // 제목 수정 저장
+  const saveNameEdit = async (mockApiId: number) => {
+    try {
+      setUpdatingName(mockApiId);
+
+      // 제목 유효성 검사
+      if (!nameEditValue.trim()) {
+        alert("제목은 비워둘 수 없습니다.");
+        return;
+      }
+
+      const response = await fetch("/api/proxy/mock/update-name", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockApiId, apiName: nameEditValue }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert("제목이 성공적으로 수정되었습니다.");
+        // 목록 업데이트
+        setMockApis((prev) =>
+          prev.map((api) =>
+            api.id === mockApiId
+              ? { ...api, apiName: nameEditValue.trim() }
+              : api
+          )
+        );
+        setEditingName(null);
+        setNameEditValue("");
+      } else {
+        throw new Error(result.error || "제목 수정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("제목 수정 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "제목 수정 중 오류가 발생했습니다."
+      );
+    } finally {
+      setUpdatingName(null);
+    }
   };
 
   const copyApiUrl = (mockApi: ProxyMockApi) => {
@@ -511,7 +658,10 @@ export default function ProxyMockApisPage() {
             <ul className="divide-y divide-gray-200">
               {mockApis.map((mockApi) => (
                 <li key={mockApi.id} className="px-4 py-4 sm:px-6">
-                  <div className="flex items-center justify-between">
+                  <div
+                    className="flex items-center justify-between cursor-pointer"
+                    onClick={() => toggleMockData(`${mockApi.id}`)}
+                  >
                     <div className="flex items-center">
                       <div className="flex-shrink-0">
                         <span
@@ -530,27 +680,67 @@ export default function ProxyMockApisPage() {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
-                          {mockApi.apiName}
+                          {editingName === mockApi.id ? (
+                            // 편집 모드
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                value={nameEditValue}
+                                onChange={(e) =>
+                                  setNameEditValue(e.target.value)
+                                }
+                                className="flex-1 px-2 py-1 text-sm border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="제목을 입력하세요"
+                                autoFocus
+                              />
+                              <button
+                                onClick={() => saveNameEdit(mockApi.id)}
+                                disabled={updatingName === mockApi.id}
+                                className={`px-2 py-1 text-xs font-medium rounded ${
+                                  updatingName === mockApi.id
+                                    ? "bg-green-400 text-white cursor-not-allowed"
+                                    : "bg-green-600 text-white hover:bg-green-700"
+                                }`}
+                              >
+                                {updatingName === mockApi.id
+                                  ? "저장 중..."
+                                  : "확인"}
+                              </button>
+                              <button
+                                onClick={cancelNameEdit}
+                                className="px-2 py-1 text-xs font-medium rounded bg-gray-600 text-white hover:bg-gray-700"
+                              >
+                                취소
+                              </button>
+                            </div>
+                          ) : (
+                            // 읽기 모드
+                            <div className="flex items-center space-x-2">
+                              <span>{mockApi.apiName}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation(); // 클릭 이벤트 전파 방지
+                                  startNameEdit(mockApi);
+                                }}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                title="제목 수정"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <div className="text-sm text-gray-500">
                           {mockApi.path}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {/* Mock API 상태 표시 */}
-                          <span
-                            className={`mr-3 px-2 py-1 rounded-full text-xs font-medium ${
-                              mockApi.isActive
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            {mockApi.isActive ? "🟢 활성화" : "⚫ 비활성화"}
-                          </span>
+                          {/* 지연 시간 표시 - 0이 아닐 때만 표시 */}
                           {mockApi.delayMs > 0 && (
                             <span className="text-orange-600 mr-3">
                               ⏱️ 지연: {mockApi.delayMs}ms
                             </span>
                           )}
+                          {/* 에러코드 표시 - null이 아닐 때만 표시 */}
                           {mockApi.errorCode && (
                             <span className="text-red-600">
                               ❌ 에러: {mockApi.errorCode}
@@ -566,7 +756,10 @@ export default function ProxyMockApisPage() {
                       <div className="flex space-x-2">
                         {/* 1. On/Off 토글 스위치 */}
                         <button
-                          onClick={() => toggleMockApi(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            toggleMockApi(mockApi);
+                          }}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                             mockApi.isActive ? "bg-blue-600" : "bg-gray-300"
                           }`}
@@ -587,7 +780,10 @@ export default function ProxyMockApisPage() {
 
                         {/* 2. URL 복사 버튼 */}
                         <button
-                          onClick={() => copyApiUrl(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            copyApiUrl(mockApi);
+                          }}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
                         >
                           📋 URL 복사
@@ -595,7 +791,10 @@ export default function ProxyMockApisPage() {
 
                         {/* 3. 지연 시간 설정 버튼 */}
                         <button
-                          onClick={() => openDelayModal(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            openDelayModal(mockApi);
+                          }}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200"
                         >
                           ⏱️ 지연
@@ -603,7 +802,10 @@ export default function ProxyMockApisPage() {
 
                         {/* 4. 에러코드 설정 버튼 */}
                         <button
-                          onClick={() => openErrorCodeModal(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            openErrorCodeModal(mockApi);
+                          }}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
                         >
                           ❌ 에러
@@ -611,7 +813,10 @@ export default function ProxyMockApisPage() {
 
                         {/* 5. 삭제 버튼 */}
                         <button
-                          onClick={() => deleteMockApi(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            deleteMockApi(mockApi);
+                          }}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
                         >
                           🗑️ 삭제
@@ -619,7 +824,10 @@ export default function ProxyMockApisPage() {
 
                         {/* 6. 테스트 버튼 */}
                         <button
-                          onClick={() => testApi(mockApi)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // 클릭 이벤트 전파 방지
+                            testApi(mockApi);
+                          }}
                           disabled={isTesting(mockApi)}
                           className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
                             isTesting(mockApi)
@@ -631,12 +839,9 @@ export default function ProxyMockApisPage() {
                         </button>
 
                         {/* 7. 데이터 보기 화살표 */}
-                        <button
-                          onClick={() => toggleMockData(`${mockApi.id}`)}
-                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                        >
+                        <div className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700">
                           {expandedMockData[`${mockApi.id}`] ? "▼" : "▶"}
-                        </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -690,21 +895,6 @@ export default function ProxyMockApisPage() {
                   {/* Mock 데이터 표시 영역 */}
                   {expandedMockData[`${mockApi.id}`] && (
                     <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-900">
-                          📊 저장된 Mock 데이터
-                        </h4>
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            mockApi.isActive
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {mockApi.isActive ? "활성화됨" : "비활성화됨"}
-                        </span>
-                      </div>
-
                       <div className="space-y-3">
                         {/* 요청 스펙 */}
                         {mockApi.requestSpec && (
@@ -720,34 +910,58 @@ export default function ProxyMockApisPage() {
 
                         {/* 응답 데이터 */}
                         <div>
-                          <h5 className="text-xs font-medium text-gray-700 mb-1">
-                            📤 응답 데이터:
-                          </h5>
-                          <pre className="text-xs bg-white p-2 rounded border overflow-x-auto max-h-32 overflow-y-auto">
-                            {formatJson(mockApi.mockData)}
-                          </pre>
-                        </div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-xs font-medium text-gray-700">
+                              📤 응답 데이터:
+                            </h5>
+                            {/* 응답 데이터 수정하기 버튼 */}
+                            <button
+                              onClick={() => startResponseEdit(mockApi)}
+                              className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                            >
+                              ✏️ 응답 데이터 수정하기
+                            </button>
+                          </div>
 
-                        {/* 설정 정보 */}
-                        <div className="grid grid-cols-2 gap-4 text-xs">
-                          <div>
-                            <span className="font-medium text-gray-700">
-                              지연 시간:
-                            </span>
-                            <span className="ml-1 text-gray-600">
-                              {mockApi.delayMs > 0
-                                ? `${mockApi.delayMs}ms`
-                                : "없음"}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-700">
-                              에러 코드:
-                            </span>
-                            <span className="ml-1 text-gray-600">
-                              {mockApi.errorCode || "없음"}
-                            </span>
-                          </div>
+                          {editingResponse === mockApi.id ? (
+                            // 편집 모드
+                            <div className="space-y-2">
+                              <textarea
+                                value={responseEditValue}
+                                onChange={(e) =>
+                                  setResponseEditValue(e.target.value)
+                                }
+                                className="w-full h-64 p-2 text-xs font-mono bg-white border border-blue-300 rounded resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="JSON 데이터를 입력하세요..."
+                              />
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => saveResponseEdit(mockApi.id)}
+                                  disabled={updatingResponse === mockApi.id}
+                                  className={`px-3 py-1 text-xs font-medium rounded ${
+                                    updatingResponse === mockApi.id
+                                      ? "bg-blue-400 text-white cursor-not-allowed"
+                                      : "bg-green-600 text-white hover:bg-green-700"
+                                  }`}
+                                >
+                                  {updatingResponse === mockApi.id
+                                    ? "저장 중..."
+                                    : "확인"}
+                                </button>
+                                <button
+                                  onClick={cancelResponseEdit}
+                                  className="px-3 py-1 text-xs font-medium rounded bg-gray-600 text-white hover:bg-gray-700"
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            // 읽기 모드
+                            <pre className="text-xs bg-white p-2 rounded border overflow-x-auto max-h-64 overflow-y-auto">
+                              {formatJson(mockApi.mockData)}
+                            </pre>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -781,7 +995,8 @@ export default function ProxyMockApisPage() {
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  0-30000ms 사이의 값을 입력하세요
+                  0-30000ms 사이의 값을 입력하세요. 0으로 설정하면 지연이
+                  제거되고 정상 응답으로 설정됩니다.
                 </p>
               </div>
               <div className="flex justify-end space-x-3">
@@ -833,8 +1048,10 @@ export default function ProxyMockApisPage() {
                   placeholder="비워두면 정상 응답 (200)"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  100-599 사이의 HTTP 에러 코드를 입력하세요. 비워두면 정상
-                  응답(200)을 반환합니다.
+                  100-599 사이의 HTTP 에러 코드를 입력하세요.
+                  <strong>
+                    비워두거나 0으로 설정하면 정상 응답(200)을 반환합니다.
+                  </strong>
                 </p>
               </div>
               <div className="flex justify-end space-x-3">
