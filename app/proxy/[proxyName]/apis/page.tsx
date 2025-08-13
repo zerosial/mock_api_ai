@@ -747,46 +747,63 @@ export default function ProxyMockApisPage() {
           ) : (
             <>
               {/* 검색 및 필터링 UI */}
-              <div className="mb-6 space-y-4">
-                {/* 경로 검색 */}
-                <div>
-                  <label
-                    htmlFor="searchPath"
-                    className="block text-sm font-medium text-gray-700 mb-2"
-                  >
-                    Mock API 경로 검색
-                  </label>
-                  <input
-                    type="text"
-                    id="searchPath"
-                    value={searchPath}
-                    onChange={(e) => setSearchPath(e.target.value)}
-                    placeholder="예: /api/products/v2"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
+              <div className="px-4 py-4 border-b border-gray-200 bg-gray-50">
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {/* 경로 검색 */}
+                  <div className="flex-1">
+                    <label
+                      htmlFor="searchPath"
+                      className="block text-sm font-medium text-gray-700 mb-1"
+                    >
+                      Mock API 경로 검색
+                    </label>
+                    <input
+                      type="text"
+                      id="searchPath"
+                      value={searchPath}
+                      onChange={(e) => setSearchPath(e.target.value)}
+                      placeholder="예: /api/products/v2"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                  </div>
 
-                {/* HTTP 메서드 필터 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    HTTP 메서드
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {httpMethods.map((method) => (
-                      <button
-                        key={method.value}
-                        onClick={() => setSelectedMethod(method.value)}
-                        className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                          selectedMethod === method.value
-                            ? method.color
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                        }`}
-                      >
-                        {method.label}
-                      </button>
-                    ))}
+                  {/* HTTP 메서드 필터 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      HTTP 메서드
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {httpMethods.map((method) => (
+                        <button
+                          key={method.value}
+                          onClick={() => setSelectedMethod(method.value)}
+                          className={`px-3 py-2 text-xs font-medium rounded-md border transition-colors ${
+                            selectedMethod === method.value
+                              ? `${method.color} border-gray-300`
+                              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                          }`}
+                        >
+                          {method.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
+
+                {/* 검색 결과 요약 */}
+                {searchPath || selectedMethod !== "ALL" ? (
+                  <div className="mt-3 text-sm text-gray-600">
+                    검색 결과: {filteredMockApis.length}개 Mock API
+                    {searchPath && (
+                      <span className="ml-2">
+                        (경로: &quot;{searchPath}&quot;)
+                      </span>
+                    )}
+                    {selectedMethod !== "ALL" && (
+                      <span className="ml-2">(메서드: {selectedMethod})</span>
+                    )}
+                  </div>
+                ) : null}
               </div>
 
               <ul className="divide-y divide-gray-200">
