@@ -174,7 +174,9 @@ async function handleProxyRequest(
             statusCode,
             responseTime,
             userAgent: req.headers.get("user-agent"),
-            ipAddress: req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip"),
+            ipAddress:
+              req.headers.get("x-forwarded-for") ||
+              req.headers.get("x-real-ip"),
             isMock: true,
           },
         });

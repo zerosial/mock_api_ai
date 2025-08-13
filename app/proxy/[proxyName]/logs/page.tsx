@@ -181,7 +181,11 @@ export default function ProxyLogsPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        alert("Mock API가 성공적으로 생성되었습니다!");
+        const message = result.isUpdate
+          ? "기존 Mock API가 성공적으로 업데이트되었습니다!"
+          : "Mock API가 성공적으로 생성되었습니다!";
+
+        alert(message);
 
         // Mock API 목록 페이지로 이동
         window.location.href = `/proxy/${proxyName}/apis`;
@@ -203,41 +207,24 @@ export default function ProxyLogsPage() {
     if (!data) return "데이터 없음";
 
     try {
-      // 이미 객체인 경우
-      if (typeof data === "object") {
-        return JSON.stringify(data, null, 2);
-      }
+      let parsedData: unknown;
 
       // 문자열인 경우 JSON 파싱 시도
       if (typeof data === "string") {
-        // 이스케이프된 따옴표 처리
-        let cleanData = data;
-        if (data.includes('\\"')) {
-          try {
-            cleanData = JSON.parse(data);
-          } catch {
-            // 이스케이프 제거 시도
-            cleanData = data.replace(/\\"/g, '"');
-            try {
-              cleanData = JSON.parse(cleanData);
-            } catch {
-              // 파싱 실패 시 원본 반환
-              return data;
-            }
-          }
-        } else {
-          try {
-            cleanData = JSON.parse(data);
-          } catch {
-            return data;
-          }
+        try {
+          parsedData = JSON.parse(data);
+        } catch {
+          // JSON 파싱 실패 시 일반 문자열로 처리
+          return data;
         }
-
-        return JSON.stringify(cleanData, null, 2);
+      } else {
+        parsedData = data;
       }
 
-      return String(data);
-    } catch {
+      // 이미 객체인 경우 그대로 사용
+      return JSON.stringify(parsedData, null, 2);
+    } catch (error) {
+      console.error("JSON 포맷팅 오류:", error);
       return String(data);
     }
   };
