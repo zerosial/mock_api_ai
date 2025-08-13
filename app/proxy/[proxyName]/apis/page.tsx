@@ -46,6 +46,16 @@ export default function ProxyMockApisPage() {
   const [expandedMockData, setExpandedMockData] = useState<
     Record<string, boolean>
   >({});
+  const [delayModalOpen, setDelayModalOpen] = useState<number | null>(null);
+  const [errorCodeModalOpen, setErrorCodeModalOpen] = useState<number | null>(
+    null
+  );
+  const [delayValue, setDelayValue] = useState<string>("");
+  const [errorCodeValue, setErrorCodeValue] = useState<string>("");
+  const [updatingDelay, setUpdatingDelay] = useState<number | null>(null);
+  const [updatingErrorCode, setUpdatingErrorCode] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     fetchData();
@@ -203,7 +213,7 @@ export default function ProxyMockApisPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        alert(result.message);
+        // alert 제거 - On/Off 상태 변경은 시각적으로만 표시
         // 목록 업데이트
         setMockApis((prev) =>
           prev.map((api) =>
@@ -256,6 +266,113 @@ export default function ProxyMockApisPage() {
       console.error("JSON 포맷팅 오류:", error);
       return String(data);
     }
+  };
+
+  // 지연 시간 설정
+  const setDelay = async (mockApiId: number) => {
+    try {
+      setUpdatingDelay(mockApiId);
+      const delayMs = parseInt(delayValue);
+
+      if (isNaN(delayMs) || delayMs < 0 || delayMs > 30000) {
+        alert("지연 시간은 0-30000ms 사이의 값이어야 합니다.");
+        return;
+      }
+
+      const response = await fetch("/api/proxy/mock/delay", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockApiId, delayMs }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(result.message);
+        // 목록 업데이트
+        setMockApis((prev) =>
+          prev.map((api) =>
+            api.id === mockApiId ? { ...api, delayMs: delayMs } : api
+          )
+        );
+        setDelayModalOpen(null);
+        setDelayValue("");
+      } else {
+        throw new Error(result.error || "지연 시간 설정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("지연 시간 설정 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "지연 시간 설정 중 오류가 발생했습니다."
+      );
+    } finally {
+      setUpdatingDelay(null);
+    }
+  };
+
+  // 에러코드 설정
+  const setErrorCode = async (mockApiId: number) => {
+    try {
+      setUpdatingErrorCode(mockApiId);
+      const errorCode = errorCodeValue === "" ? null : parseInt(errorCodeValue);
+
+      if (
+        errorCode !== null &&
+        (isNaN(errorCode) || errorCode < 100 || errorCode > 599)
+      ) {
+        alert("에러코드는 100-599 사이의 HTTP 상태 코드여야 합니다.");
+        return;
+      }
+
+      const response = await fetch("/api/proxy/mock/error-code", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockApiId, errorCode }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(result.message);
+        // 목록 업데이트
+        setMockApis((prev) =>
+          prev.map((api) =>
+            api.id === mockApiId ? { ...api, errorCode: errorCode } : api
+          )
+        );
+        setErrorCodeModalOpen(null);
+        setErrorCodeValue("");
+      } else {
+        throw new Error(result.error || "에러코드 설정에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("에러코드 설정 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "에러코드 설정 중 오류가 발생했습니다."
+      );
+    } finally {
+      setUpdatingErrorCode(null);
+    }
+  };
+
+  // 지연 시간 모달 열기
+  const openDelayModal = (mockApi: ProxyMockApi) => {
+    setDelayModalOpen(mockApi.id);
+    setDelayValue(mockApi.delayMs.toString());
+  };
+
+  // 에러코드 모달 열기
+  const openErrorCodeModal = (mockApi: ProxyMockApi) => {
+    setErrorCodeModalOpen(mockApi.id);
+    setErrorCodeValue(mockApi.errorCode?.toString() || "");
   };
 
   const copyApiUrl = (mockApi: ProxyMockApi) => {
@@ -419,6 +536,16 @@ export default function ProxyMockApisPage() {
                           {mockApi.path}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
+                          {/* Mock API 상태 표시 */}
+                          <span
+                            className={`mr-3 px-2 py-1 rounded-full text-xs font-medium ${
+                              mockApi.isActive
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-600"
+                            }`}
+                          >
+                            {mockApi.isActive ? "🟢 활성화" : "⚫ 비활성화"}
+                          </span>
                           {mockApi.delayMs > 0 && (
                             <span className="text-orange-600 mr-3">
                               ⏱️ 지연: {mockApi.delayMs}ms
@@ -437,17 +564,28 @@ export default function ProxyMockApisPage() {
                         {new Date(mockApi.createdAt).toLocaleDateString()}
                       </div>
                       <div className="flex space-x-2">
-                        {/* Mock 데이터 보기 버튼 */}
+                        {/* 1. On/Off 토글 스위치 */}
                         <button
-                          onClick={() => toggleMockData(`${mockApi.id}`)}
-                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          onClick={() => toggleMockApi(mockApi)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                            mockApi.isActive ? "bg-blue-600" : "bg-gray-300"
+                          }`}
+                          title={
+                            mockApi.isActive
+                              ? "Mock API 활성화됨"
+                              : "Mock API 비활성화됨"
+                          }
                         >
-                          {expandedMockData[`${mockApi.id}`]
-                            ? "📖 데이터 숨기기"
-                            : "👁️ 데이터 보기"}
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                              mockApi.isActive
+                                ? "translate-x-6"
+                                : "translate-x-1"
+                            }`}
+                          />
                         </button>
 
-                        {/* API URL 복사 버튼 */}
+                        {/* 2. URL 복사 버튼 */}
                         <button
                           onClick={() => copyApiUrl(mockApi)}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
@@ -455,19 +593,23 @@ export default function ProxyMockApisPage() {
                           📋 URL 복사
                         </button>
 
-                        {/* Mock API 활성화/비활성화 토글 */}
+                        {/* 3. 지연 시간 설정 버튼 */}
                         <button
-                          onClick={() => toggleMockApi(mockApi)}
-                          className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded ${
-                            mockApi.isActive
-                              ? "bg-green-100 text-green-700 hover:bg-green-200"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
+                          onClick={() => openDelayModal(mockApi)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-orange-100 text-orange-700 hover:bg-orange-200"
                         >
-                          {mockApi.isActive ? "🟢 ON" : "⚫ OFF"}
+                          ⏱️ 지연
                         </button>
 
-                        {/* Mock API 삭제 버튼 */}
+                        {/* 4. 에러코드 설정 버튼 */}
+                        <button
+                          onClick={() => openErrorCodeModal(mockApi)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
+                        >
+                          ❌ 에러
+                        </button>
+
+                        {/* 5. 삭제 버튼 */}
                         <button
                           onClick={() => deleteMockApi(mockApi)}
                           className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
@@ -475,7 +617,7 @@ export default function ProxyMockApisPage() {
                           🗑️ 삭제
                         </button>
 
-                        {/* API 테스트 버튼 */}
+                        {/* 6. 테스트 버튼 */}
                         <button
                           onClick={() => testApi(mockApi)}
                           disabled={isTesting(mockApi)}
@@ -486,6 +628,14 @@ export default function ProxyMockApisPage() {
                           }`}
                         >
                           {isTesting(mockApi) ? "로딩 중..." : "테스트"}
+                        </button>
+
+                        {/* 7. 데이터 보기 화살표 */}
+                        <button
+                          onClick={() => toggleMockData(`${mockApi.id}`)}
+                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                        >
+                          {expandedMockData[`${mockApi.id}`] ? "▼" : "▶"}
                         </button>
                       </div>
                     </div>
@@ -608,6 +758,113 @@ export default function ProxyMockApisPage() {
           )}
         </div>
       </div>
+
+      {/* 지연 시간 설정 모달 */}
+      {delayModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                지연 시간 설정
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  지연 시간 (밀리초)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="30000"
+                  value={delayValue}
+                  onChange={(e) => setDelayValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="0"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  0-30000ms 사이의 값을 입력하세요
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setDelayModalOpen(null);
+                    setDelayValue("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setDelay(delayModalOpen)}
+                  disabled={updatingDelay === delayModalOpen}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    updatingDelay === delayModalOpen
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {updatingDelay === delayModalOpen ? "설정 중..." : "설정"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 에러 코드 설정 모달 */}
+      {errorCodeModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                에러 코드 설정
+              </h3>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  HTTP 에러 코드
+                </label>
+                <input
+                  type="number"
+                  min="100"
+                  max="599"
+                  value={errorCodeValue}
+                  onChange={(e) => setErrorCodeValue(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="비워두면 정상 응답 (200)"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  100-599 사이의 HTTP 에러 코드를 입력하세요. 비워두면 정상
+                  응답(200)을 반환합니다.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setErrorCodeModalOpen(null);
+                    setErrorCodeValue("");
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => setErrorCode(errorCodeModalOpen)}
+                  disabled={updatingErrorCode === errorCodeModalOpen}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-md ${
+                    updatingErrorCode === errorCodeModalOpen
+                      ? "bg-blue-400 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  }`}
+                >
+                  {updatingErrorCode === errorCodeModalOpen
+                    ? "설정 중..."
+                    : "설정"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
