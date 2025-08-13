@@ -63,9 +63,11 @@ export default function ProxyMockApisPage() {
   const [editingName, setEditingName] = useState<number | null>(null);
   const [nameEditValue, setNameEditValue] = useState<string>("");
   const [updatingName, setUpdatingName] = useState<number | null>(null);
+  const [togglingMock, setTogglingMock] = useState<number | null>(null);
   const [searchPath, setSearchPath] = useState<string>("");
   const [selectedMethod, setSelectedMethod] = useState<string>("ALL");
   const [filteredMockApis, setFilteredMockApis] = useState<ProxyMockApi[]>([]);
+  const [isWorking, setIsWorking] = useState(false);
 
   const httpMethods = [
     { value: "ALL", label: "전체", color: "bg-gray-100 text-gray-800" },
@@ -203,11 +205,14 @@ export default function ProxyMockApisPage() {
 
   // Mock API 삭제
   const deleteMockApi = async (mockApi: ProxyMockApi) => {
-    if (!confirm(`정말로 "${mockApi.apiName}" Mock API를 삭제하시겠습니까?`)) {
+    if (
+      !confirm(`정말로 Mock API "${mockApi.apiName}"을(를) 삭제하시겠습니까?`)
+    ) {
       return;
     }
 
     try {
+      setIsWorking(true);
       const response = await fetch("/api/proxy/mock/delete", {
         method: "DELETE",
         headers: {
@@ -216,15 +221,14 @@ export default function ProxyMockApisPage() {
         body: JSON.stringify({ mockApiId: mockApi.id }),
       });
 
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        alert("Mock API가 성공적으로 삭제되었습니다.");
-        // 목록에서 제거
-        setMockApis((prev) => prev.filter((api) => api.id !== mockApi.id));
-      } else {
-        throw new Error(result.error || "Mock API 삭제에 실패했습니다.");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Mock API 삭제에 실패했습니다.");
       }
+
+      // 목록에서 제거
+      setMockApis((prev) => prev.filter((api) => api.id !== mockApi.id));
+      alert("Mock API가 성공적으로 삭제되었습니다.");
     } catch (error) {
       console.error("Mock API 삭제 오류:", error);
       alert(
@@ -232,12 +236,16 @@ export default function ProxyMockApisPage() {
           ? error.message
           : "Mock API 삭제 중 오류가 발생했습니다."
       );
+    } finally {
+      setIsWorking(false);
     }
   };
 
   // Mock API 활성화/비활성화 토글
   const toggleMockApi = async (mockApi: ProxyMockApi) => {
     try {
+      setTogglingMock(mockApi.id);
+      setIsWorking(true);
       const newActiveState = !mockApi.isActive;
 
       const response = await fetch("/api/proxy/mock/toggle", {
@@ -281,6 +289,9 @@ export default function ProxyMockApisPage() {
           ? error.message
           : "Mock API 상태 변경 중 오류가 발생했습니다."
       );
+    } finally {
+      setTogglingMock(null);
+      setIsWorking(false);
     }
   };
 
@@ -435,6 +446,8 @@ export default function ProxyMockApisPage() {
   // Mock API 활성화 전환
   const switchActiveMockApi = async (mockApiId: number) => {
     try {
+      setTogglingMock(mockApiId);
+      setIsWorking(true);
       const response = await fetch("/api/proxy/mock/switch-active", {
         method: "PATCH",
         headers: {
@@ -449,14 +462,17 @@ export default function ProxyMockApisPage() {
         // 목록 업데이트 - 같은 경로/메서드의 모든 Mock API 상태 업데이트
         setMockApis((prev) =>
           prev.map((api) => {
+            // Find the target API's path/method from the current state
+            const targetApi = prev.find((a) => a.id === mockApiId);
+            if (!targetApi) return api; // Should not happen
+
             if (api.id === mockApiId) {
               // 선택된 Mock API 활성화
               return { ...api, isActive: true };
             } else if (
-              api.proxyServerId ===
-                prev.find((a) => a.id === mockApiId)?.proxyServerId &&
-              api.path === prev.find((a) => a.id === mockApiId)?.path &&
-              api.method === prev.find((a) => a.id === mockApiId)?.method
+              api.proxyServerId === targetApi.proxyServerId &&
+              api.path === targetApi.path &&
+              api.method === targetApi.method
             ) {
               // 같은 경로/메서드의 다른 Mock API들은 비활성화
               return { ...api, isActive: false };
@@ -474,6 +490,9 @@ export default function ProxyMockApisPage() {
           ? error.message
           : "Mock API 활성화 전환 중 오류가 발생했습니다."
       );
+    } finally {
+      setTogglingMock(null);
+      setIsWorking(false);
     }
   };
 
@@ -673,6 +692,21 @@ export default function ProxyMockApisPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* 로딩 오버레이 */}
+      {isWorking && (
+        <div className="fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl border border-gray-200">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="text-gray-700 text-lg font-medium">
+              Mock API 작업 중...
+            </div>
+            <div className="text-gray-500 text-sm mt-2">
+              잠시만 기다려주세요
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
         <div className="mb-8">
@@ -915,13 +949,25 @@ export default function ProxyMockApisPage() {
                                 e.stopPropagation();
                                 toggleMockApi(mockApi);
                               }}
+                              disabled={togglingMock === mockApi.id}
                               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                                mockApi.isActive ? "bg-blue-600" : "bg-gray-200"
+                                togglingMock === mockApi.id
+                                  ? "bg-gray-300 cursor-not-allowed"
+                                  : mockApi.isActive
+                                  ? "bg-blue-600"
+                                  : "bg-gray-200"
                               }`}
+                              title={
+                                togglingMock === mockApi.id
+                                  ? "상태 변경 중..."
+                                  : "Mock API 활성화/비활성화"
+                              }
                             >
                               <span
                                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                  mockApi.isActive
+                                  togglingMock === mockApi.id
+                                    ? "translate-x-1"
+                                    : mockApi.isActive
                                     ? "translate-x-6"
                                     : "translate-x-1"
                                 }`}
@@ -967,7 +1013,7 @@ export default function ProxyMockApisPage() {
                               e.stopPropagation(); // 클릭 이벤트 전파 방지
                               deleteMockApi(mockApi);
                             }}
-                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-700 hover:bg-red-200"
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
                           >
                             🗑️ 삭제
                           </button>

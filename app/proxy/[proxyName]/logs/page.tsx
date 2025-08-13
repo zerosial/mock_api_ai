@@ -55,6 +55,7 @@ export default function ProxyLogsPage() {
   // 검색 및 필터 상태
   const [searchPath, setSearchPath] = useState("");
   const [selectedMethod, setSelectedMethod] = useState<string>("ALL");
+  const [isWorking, setIsWorking] = useState(false);
 
   const httpMethods = [
     { value: "ALL", label: "전체", color: "bg-gray-100 text-gray-800" },
@@ -163,6 +164,7 @@ export default function ProxyLogsPage() {
   // Mock API 생성
   const createMockApiFromLog = async (log: CommunicationLog) => {
     try {
+      setIsWorking(true);
       const response = await fetch("/api/proxy/mock/create", {
         method: "POST",
         headers: {
@@ -206,6 +208,8 @@ export default function ProxyLogsPage() {
           ? error.message
           : "Mock API 생성 중 오류가 발생했습니다."
       );
+    } finally {
+      setIsWorking(false);
     }
   };
 
@@ -254,6 +258,21 @@ export default function ProxyLogsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* 로딩 오버레이 */}
+      {isWorking && (
+        <div className="fixed inset-0 bg-white bg-opacity-80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 shadow-xl border border-gray-200">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="text-gray-700 text-lg font-medium">
+              Mock API 생성 중...
+            </div>
+            <div className="text-gray-500 text-sm mt-2">
+              잠시만 기다려주세요
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 헤더 */}
         <div className="mb-8">

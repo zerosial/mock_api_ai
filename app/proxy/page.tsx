@@ -424,7 +424,7 @@ export default function ProxyPage() {
                           className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded transition-colors ${
                             deleting === proxy.id
                               ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                              : "bg-red-100 text-red-700 hover:bg-red-200"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                           }`}
                           title="프록시 서버와 관련 데이터 모두 삭제"
                         >
