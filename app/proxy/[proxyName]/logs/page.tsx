@@ -160,7 +160,7 @@ export default function ProxyLogsPage() {
     setRouteLogs([]);
   };
 
-  // 통신 로그를 기반으로 Mock API 생성
+  // Mock API 생성
   const createMockApiFromLog = async (log: CommunicationLog) => {
     try {
       const response = await fetch("/api/proxy/mock/create", {
@@ -174,16 +174,23 @@ export default function ProxyLogsPage() {
           method: log.method,
           requestBody: log.requestBody,
           responseBody: log.responseBody,
-          statusCode: log.statusCode,
         }),
       });
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        const message = result.isUpdate
-          ? "기존 Mock API가 성공적으로 업데이트되었습니다!"
-          : "Mock API가 성공적으로 생성되었습니다!";
+        // 응답 메시지 개선
+        let message = result.message;
+        if (result.wasInactive) {
+          message =
+            "✅ " + message + "\n\n비활성화된 Mock API가 활성화되었습니다.";
+        } else if (!result.isUpdate) {
+          message =
+            "✅ " +
+            message +
+            "\n\n새로운 Mock API가 생성되었습니다.\n같은 경로/메서드의 기존 Mock API들은 자동으로 비활성화되었습니다.";
+        }
 
         alert(message);
 

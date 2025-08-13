@@ -387,6 +387,41 @@ export default function ProxyMockApisPage() {
     }
   };
 
+  // Mock API 활성화 전환
+  const switchActiveMockApi = async (mockApiId: number) => {
+    try {
+      const response = await fetch("/api/proxy/mock/switch-active", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mockApiId }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        alert(result.message);
+        // 목록 업데이트
+        setMockApis((prev) =>
+          prev.map((api) => ({
+            ...api,
+            isActive: api.id === mockApiId,
+          }))
+        );
+      } else {
+        throw new Error(result.error || "Mock API 활성화 전환에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("Mock API 활성화 전환 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Mock API 활성화 전환 중 오류가 발생했습니다."
+      );
+    }
+  };
+
   // 지연 시간 모달 열기
   const openDelayModal = (mockApi: ProxyMockApi) => {
     setDelayModalOpen(mockApi.id);
@@ -754,40 +789,51 @@ export default function ProxyMockApisPage() {
                         {new Date(mockApi.createdAt).toLocaleDateString()}
                       </div>
                       <div className="flex space-x-2">
-                        {/* 1. On/Off 토글 스위치 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation(); // 클릭 이벤트 전파 방지
-                            toggleMockApi(mockApi);
-                          }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                            mockApi.isActive ? "bg-blue-600" : "bg-gray-300"
-                          }`}
-                          title={
-                            mockApi.isActive
-                              ? "Mock API 활성화됨"
-                              : "Mock API 비활성화됨"
-                          }
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                              mockApi.isActive
-                                ? "translate-x-6"
-                                : "translate-x-1"
+                        <div className="flex items-center space-x-2">
+                          {/* On/Off 토글 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleMockApi(mockApi);
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              mockApi.isActive ? "bg-blue-600" : "bg-gray-200"
                             }`}
-                          />
-                        </button>
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                mockApi.isActive
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
 
-                        {/* 2. URL 복사 버튼 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation(); // 클릭 이벤트 전파 방지
-                            copyApiUrl(mockApi);
-                          }}
-                          className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                        >
-                          📋 URL 복사
-                        </button>
+                          {/* 활성화 전환 버튼 (비활성화된 Mock API에만 표시) */}
+                          {!mockApi.isActive && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                switchActiveMockApi(mockApi.id);
+                              }}
+                              className="px-2 py-1 text-xs font-medium rounded bg-green-600 text-white hover:bg-green-700 transition-colors"
+                              title="이 Mock API를 활성화로 전환"
+                            >
+                              🔄 활성화
+                            </button>
+                          )}
+
+                          {/* URL 복사 */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyApiUrl(mockApi);
+                            }}
+                            className="px-2 py-1 text-xs font-medium rounded bg-gray-600 text-white hover:bg-gray-700 transition-colors"
+                          >
+                            📋 URL
+                          </button>
+                        </div>
 
                         {/* 3. 지연 시간 설정 버튼 */}
                         <button

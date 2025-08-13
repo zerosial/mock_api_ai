@@ -95,7 +95,7 @@ model ProxyMockApi {
   // ProxyServer와의 관계
   proxyServer ProxyServer @relation(fields: [proxyServerId], references: [id], onDelete: Cascade)
 
-  @@unique([proxyServerId, path, method])
+  // @@unique([proxyServerId, path, method]) 제거 - 같은 경로/메서드에 대해 여러 Mock API 생성 가능
   @@map("proxy_mock_apis")
 }
 
