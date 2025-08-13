@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { proxyName: string } }
+  { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
+    const { proxyName } = await params;
     const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: params.proxyName },
+      where: { name: proxyName },
     });
 
     if (!proxyServer) {
@@ -31,12 +30,14 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { proxyName: string } }
+  { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
+    const { proxyName } = await params;
+
     // 프록시 서버 조회
     const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: params.proxyName },
+      where: { name: proxyName },
       include: {
         _count: {
           select: {
