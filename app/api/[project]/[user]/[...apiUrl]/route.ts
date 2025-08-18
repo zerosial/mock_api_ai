@@ -130,20 +130,9 @@ async function handleRequest(
       },
     });
 
-    // 에러 코드가 설정되어 있으면 해당 코드로 응답
-    if (template.errorCode) {
-      const response = NextResponse.json(
-        {
-          error: "Custom error response",
-          message: `Configured error code: ${template.errorCode}`,
-          timestamp: new Date().toISOString(),
-        },
-        { status: template.errorCode }
-      );
-      return response;
-    }
-
-    const response = NextResponse.json(responseData, { status: 200 });
+    // 에러 코드가 설정되어 있으면 해당 코드로 응답하되, 기존 응답 데이터는 유지
+    const statusCode = template.errorCode || 200;
+    const response = NextResponse.json(responseData, { status: statusCode });
     return response;
   } catch (error) {
     console.error("API 호출 오류:", error);

@@ -147,18 +147,14 @@ async function handleProxyRequest(
         await new Promise((resolve) => setTimeout(resolve, mockApi.delayMs));
       }
 
-      // 에러 코드 처리
+      // 에러 코드 처리 - 상태 코드만 변경하고 응답 데이터는 유지
       if (mockApi.errorCode && mockApi.errorCode > 0) {
         console.log(`❌ 에러 코드: ${mockApi.errorCode}`);
         statusCode = mockApi.errorCode;
-        responseData = {
-          error: "Mock API 에러",
-          code: mockApi.errorCode,
-        };
-      } else {
-        console.log(`📤 Mock 데이터 반환:`, mockApi.mockData);
-        responseData = mockApi.mockData || {};
       }
+
+      console.log(`📤 Mock 데이터 반환:`, mockApi.mockData);
+      responseData = mockApi.mockData || {};
 
       responseTime = Date.now() - startTime;
 
