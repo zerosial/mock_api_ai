@@ -74,6 +74,7 @@ npm install
 ```env
 DATABASE_URL="your_postgresql_connection_string"
 OPENAI_API_KEY="your_openai_api_key"
+NODE_ENV=development
 ```
 
 ### 3. 데이터베이스 마이그레이션
