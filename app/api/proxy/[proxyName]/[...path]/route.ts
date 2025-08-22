@@ -230,17 +230,17 @@ async function handleProxyRequest(
       targetUrl.searchParams.set(key, value);
     });
 
-    // 헤더 준비 (민감한 헤더 제외)
+    // 헤더 준비 - 모든 헤더를 그대로 전달 (필터링 제거)
     const headers = new Headers();
+
+    // 원본 요청의 모든 헤더를 그대로 복사
     req.headers.forEach((value, key) => {
-      if (
-        !key.toLowerCase().startsWith("host") &&
-        !key.toLowerCase().startsWith("origin") &&
-        !key.toLowerCase().startsWith("referer")
-      ) {
-        headers.set(key, value);
-      }
+      headers.set(key, value);
     });
+
+    // 기본 헤더만 추가/덮어쓰기
+    headers.set("Host", new URL(targetUrl.toString()).host);
+    headers.set("User-Agent", "Mock-API-Proxy/1.0");
 
     // 요청 본문 준비
     let body: string | undefined;
@@ -249,13 +249,38 @@ async function handleProxyRequest(
     }
 
     console.log(`📤 프록시 요청 전송: ${method} ${targetUrl.toString()}`);
+    console.log(`📋 요청 헤더:`, Object.fromEntries(headers.entries()));
 
-    // 프록시 요청 실행
-    const proxyResponse = await fetch(targetUrl.toString(), {
-      method,
-      headers,
-      body,
-    });
+    // 프록시 요청 실행 (에러 처리 강화)
+    let proxyResponse;
+    try {
+      proxyResponse = await fetch(targetUrl.toString(), {
+        method,
+        headers,
+        body,
+      });
+    } catch (fetchError) {
+      console.error(`❌ 프록시 요청 실패:`, fetchError);
+
+      // 에러 상세 정보 로깅
+      if (fetchError instanceof Error) {
+        console.error(`   - 메시지: ${fetchError.message}`);
+        console.error(`   - 스택: ${fetchError.stack}`);
+        if (fetchError.cause) {
+          console.error(`   - 원인: ${fetchError.cause}`);
+        }
+      }
+
+      return NextResponse.json(
+        {
+          error: "프록시 요청 실패",
+          details:
+            fetchError instanceof Error ? fetchError.message : "Unknown error",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 502 }
+      );
+    }
 
     console.log(
       `📥 프록시 응답 수신: ${proxyResponse.status} ${proxyResponse.statusText}`
