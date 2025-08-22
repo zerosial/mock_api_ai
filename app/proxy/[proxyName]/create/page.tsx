@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { withBasePath } from "@/lib/basePath";
 
 interface Field {
   name: string;
@@ -50,7 +51,7 @@ export default function CreateProxyMockApiPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/proxy");
+      const response = await fetch(withBasePath("/api/proxy"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -159,7 +160,7 @@ export default function CreateProxyMockApiPage() {
 
     try {
       setCreating(true);
-      const response = await fetch("/api/proxy/generate", {
+      const response = await fetch(withBasePath("/api/proxy/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

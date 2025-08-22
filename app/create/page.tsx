@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
+import { withBasePath } from "@/lib/basePath";
 
 interface Field {
   name: string;
@@ -45,7 +46,7 @@ export default function CreatePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-fields", {
+      const response = await fetch(withBasePath("/api/generate-fields"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -118,24 +119,28 @@ export default function CreatePage() {
       setError("프로젝트명을 입력해주세요.");
       return false;
     }
-    
+
     // 예약된 프로젝트명 검증
     if (isReservedProjectName(formData.project.trim())) {
-      setError(`'${formData.project}'은(는) 예약된 프로젝트명입니다. 다른 이름을 사용해주세요.`);
+      setError(
+        `'${formData.project}'은(는) 예약된 프로젝트명입니다. 다른 이름을 사용해주세요.`
+      );
       return false;
     }
-    
+
     if (!formData.user.trim()) {
       setError("사용자명을 입력해주세요.");
       return false;
     }
-    
+
     // 예약된 사용자명 검증
     if (isReservedUserName(formData.user.trim())) {
-      setError(`'${formData.user}'은(는) 예약된 사용자명입니다. 다른 이름을 사용해주세요.`);
+      setError(
+        `'${formData.user}'은(는) 예약된 사용자명입니다. 다른 이름을 사용해주세요.`
+      );
       return false;
     }
-    
+
     if (!formData.apiName.trim()) {
       setError("API 이름을 입력해주세요.");
       return false;
@@ -174,7 +179,7 @@ export default function CreatePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/generate", {
+      const response = await fetch(withBasePath("/api/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
