@@ -334,7 +334,7 @@ async function handleProxyRequest(
       // JSON이나 텍스트 응답
       responseBody = await proxyResponse.text();
       console.log(
-        `📄 응답 본문 (텍스트): ${responseBody.substring(0, 200)}...`
+        `📄 응답 본문 (텍스트): ${responseBody ? responseBody.substring(0, 200) + "..." : "빈 응답"}`
       );
     } else if (
       contentType.includes("image/") ||
@@ -352,7 +352,14 @@ async function handleProxyRequest(
     } else {
       // 기본적으로 텍스트로 처리
       responseBody = await proxyResponse.text();
-      console.log(`📄 응답 본문 (기본): ${responseBody.substring(0, 200)}...`);
+      console.log(
+        `📄 응답 본문 (기본): ${responseBody ? responseBody.substring(0, 200) + "..." : "빈 응답"}`
+      );
+    }
+
+    // responseBody가 null인 경우 빈 문자열로 처리
+    if (responseBody === null) {
+      responseBody = "";
     }
 
     responseTime = Date.now() - startTime;
