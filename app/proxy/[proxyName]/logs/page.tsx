@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { withBasePath } from "@/lib/basePath";
 
 interface ProxyServer {
   id: number;
@@ -94,7 +95,7 @@ export default function ProxyLogsPage() {
 
   const fetchProxyServer = async () => {
     try {
-      const response = await fetch(`/api/proxy`);
+      const response = await fetch(withBasePath(`/api/proxy`));
       if (!response.ok) throw new Error("프록시 서버 조회 실패");
 
       const proxyServers = await response.json();
@@ -120,7 +121,7 @@ export default function ProxyLogsPage() {
       setError(null);
 
       const response = await fetch(
-        `/api/proxy/logs/routes?proxyServerName=${proxyName}`
+        withBasePath(`/api/proxy/logs/routes?proxyServerName=${proxyName}`)
       );
       if (!response.ok) throw new Error("라우트 그룹 조회 실패");
 
@@ -140,9 +141,9 @@ export default function ProxyLogsPage() {
       setSelectedRoute({ path, method });
 
       const response = await fetch(
-        `/api/proxy/logs?proxyServerName=${proxyName}&path=${encodeURIComponent(
+        withBasePath(`/api/proxy/logs?proxyServerName=${proxyName}&path=${encodeURIComponent(
           path
-        )}&method=${method}&limit=3`
+        )}&method=${method}&limit=3`)
       );
       if (!response.ok) throw new Error("라우트 로그 조회 실패");
 
@@ -165,7 +166,7 @@ export default function ProxyLogsPage() {
   const createMockApiFromLog = async (log: CommunicationLog) => {
     try {
       setIsWorking(true);
-      const response = await fetch("/api/proxy/mock/create", {
+      const response = await fetch(withBasePath("/api/proxy/mock/create"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

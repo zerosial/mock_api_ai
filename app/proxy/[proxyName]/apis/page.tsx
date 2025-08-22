@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { withBasePath } from "@/lib/basePath";
 
 interface ProxyMockApi {
   id: number;
@@ -107,7 +108,7 @@ export default function ProxyMockApisPage() {
       setError(null);
 
       // 프록시 서버 정보 조회
-      const proxyResponse = await fetch("/api/proxy");
+      const proxyResponse = await fetch(withBasePath("/api/proxy"));
       if (!proxyResponse.ok) {
         throw new Error(`HTTP error! status: ${proxyResponse.status}`);
       }
@@ -125,7 +126,9 @@ export default function ProxyMockApisPage() {
       setProxyServer(server);
 
       // Mock API 목록 조회
-      const mockApisResponse = await fetch(`/api/proxy/${proxyName}/apis`);
+      const mockApisResponse = await fetch(
+        withBasePath(`/api/proxy/${proxyName}/apis`)
+      );
       if (!mockApisResponse.ok) {
         throw new Error(`Mock API 조회 실패: ${mockApisResponse.status}`);
       }
@@ -148,7 +151,7 @@ export default function ProxyMockApisPage() {
       setTesting((prev) => ({ ...prev, [testKey]: true }));
       setTestResults((prev) => ({ ...prev, [testKey]: { success: false } }));
 
-      const url = `/api/proxy/${proxyName}${mockApi.path}`;
+      const url = withBasePath(`/api/proxy/${proxyName}${mockApi.path}`);
 
       const options: RequestInit = {
         method: mockApi.method,
@@ -213,7 +216,7 @@ export default function ProxyMockApisPage() {
 
     try {
       setIsWorking(true);
-      const response = await fetch("/api/proxy/mock/delete", {
+      const response = await fetch(withBasePath("/api/proxy/mock/delete"), {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -248,7 +251,7 @@ export default function ProxyMockApisPage() {
       setIsWorking(true);
       const newActiveState = !mockApi.isActive;
 
-      const response = await fetch("/api/proxy/mock/toggle", {
+      const response = await fetch(withBasePath("/api/proxy/mock/toggle"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -341,7 +344,7 @@ export default function ProxyMockApisPage() {
         return;
       }
 
-      const response = await fetch("/api/proxy/mock/delay", {
+      const response = await fetch(withBasePath("/api/proxy/mock/delay"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -408,7 +411,7 @@ export default function ProxyMockApisPage() {
 
       console.log("최종 에러코드:", finalErrorCode);
 
-      const response = await fetch("/api/proxy/mock/error-code", {
+      const response = await fetch(withBasePath("/api/proxy/mock/error-code"), {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -448,13 +451,16 @@ export default function ProxyMockApisPage() {
     try {
       setTogglingMock(mockApiId);
       setIsWorking(true);
-      const response = await fetch("/api/proxy/mock/switch-active", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mockApiId }),
-      });
+      const response = await fetch(
+        withBasePath("/api/proxy/mock/switch-active"),
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mockApiId }),
+        }
+      );
 
       const result = await response.json();
 
@@ -534,13 +540,16 @@ export default function ProxyMockApisPage() {
         return;
       }
 
-      const response = await fetch("/api/proxy/mock/update-response", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mockApiId, mockData: parsedData }),
-      });
+      const response = await fetch(
+        withBasePath("/api/proxy/mock/update-response"),
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mockApiId, mockData: parsedData }),
+        }
+      );
 
       const result = await response.json();
 
@@ -594,13 +603,16 @@ export default function ProxyMockApisPage() {
         return;
       }
 
-      const response = await fetch("/api/proxy/mock/update-name", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ mockApiId, apiName: nameEditValue }),
-      });
+      const response = await fetch(
+        withBasePath("/api/proxy/mock/update-name"),
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ mockApiId, apiName: nameEditValue }),
+        }
+      );
 
       const result = await response.json();
 
@@ -632,7 +644,7 @@ export default function ProxyMockApisPage() {
   };
 
   const copyApiUrl = (mockApi: ProxyMockApi) => {
-    const apiUrl = `/api/proxy/${proxyName}${mockApi.path}`;
+    const apiUrl = withBasePath(`/api/proxy/${proxyName}${mockApi.path}`);
     const fullUrl = `${window.location.origin}${apiUrl}`;
 
     navigator.clipboard
