@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { withBasePath } from "@/lib/basePath";
 
 interface ProxyServer {
@@ -37,6 +37,7 @@ interface RouteGroup {
 
 export default function ProxyLogsPage() {
   const params = useParams();
+  const router = useRouter();
   const proxyName = params.proxyName as string;
 
   const [proxyServer, setProxyServer] = useState<ProxyServer | null>(null);
@@ -141,9 +142,11 @@ export default function ProxyLogsPage() {
       setSelectedRoute({ path, method });
 
       const response = await fetch(
-        withBasePath(`/api/proxy/logs?proxyServerName=${proxyName}&path=${encodeURIComponent(
-          path
-        )}&method=${method}&limit=3`)
+        withBasePath(
+          `/api/proxy/logs?proxyServerName=${proxyName}&path=${encodeURIComponent(
+            path
+          )}&method=${method}&limit=3`
+        )
       );
       if (!response.ok) throw new Error("라우트 로그 조회 실패");
 
@@ -198,7 +201,7 @@ export default function ProxyLogsPage() {
         alert(message);
 
         // Mock API 목록 페이지로 이동
-        window.location.href = `/proxy/${proxyName}/apis`;
+        router.push(`/proxy/${proxyName}/apis`);
       } else {
         throw new Error(result.error || "Mock API 생성에 실패했습니다.");
       }
