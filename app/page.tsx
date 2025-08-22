@@ -101,7 +101,27 @@ export default function Home() {
     const fullUrl = `${window.location.origin}${apiUrl}`;
 
     try {
-      await navigator.clipboard.writeText(fullUrl);
+      // Clipboard API 사용 시도 (HTTPS 환경에서만 작동)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(fullUrl);
+      } else {
+        // Fallback: document.execCommand 사용 (HTTP 환경에서도 작동)
+        const textArea = document.createElement("textarea");
+        textArea.value = fullUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+
+        if (!successful) {
+          throw new Error("Fallback copy failed");
+        }
+      }
 
       // 복사 성공 상태 표시
       const copyKey = `copy-${template.id}`;
