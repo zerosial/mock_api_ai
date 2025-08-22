@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
+import { withBasePath } from "@/lib/basePath";
 
 interface Field {
   name: string;
@@ -48,18 +49,21 @@ export default function CreateCustomPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/generate-fields-with-values", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          apiName: formData.apiName,
-          method: formData.method,
-          url: formData.url,
-          description: formData.description,
-        }),
-      });
+      const response = await fetch(
+        withBasePath("/api/generate-fields-with-values"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            apiName: formData.apiName,
+            method: formData.method,
+            url: formData.url,
+            description: formData.description,
+          }),
+        }
+      );
 
       const result = await response.json();
 
@@ -384,7 +388,7 @@ export default function CreateCustomPage() {
       // 디버깅을 위한 로그
       console.log("Generated mockData:", mockData);
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch(withBasePath("/api/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
+import { withBasePath } from "@/lib/basePath";
 
 interface Field {
   name: string;
@@ -274,7 +275,7 @@ export default function CreateJsonPage() {
         }
       });
 
-      const response = await fetch("/api/generate", {
+      const response = await fetch(withBasePath("/api/generate"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

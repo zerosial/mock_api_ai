@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { withBasePath } from "@/lib/basePath";
 
 interface ProxyServer {
   id: number;
@@ -37,7 +38,7 @@ export default function ProxyPage() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/proxy");
+      const response = await fetch(withBasePath("/api/proxy"));
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -62,7 +63,7 @@ export default function ProxyPage() {
 
     try {
       setCreating(true);
-      const response = await fetch("/api/proxy", {
+      const response = await fetch(withBasePath("/api/proxy"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -94,7 +95,7 @@ export default function ProxyPage() {
   };
 
   const copyProxyUrl = (proxyName: string, path: string = "") => {
-    const proxyUrl = `/api/proxy/${proxyName}${path}`;
+    const proxyUrl = withBasePath(`/api/proxy/${proxyName}${path}`);
     const fullUrl = `${window.location.origin}${proxyUrl}`;
 
     navigator.clipboard
@@ -118,7 +119,7 @@ export default function ProxyPage() {
 
     try {
       setDeleting(proxyId);
-      const response = await fetch(`/api/proxy/${proxyName}`, {
+      const response = await fetch(withBasePath(`/api/proxy/${proxyName}`), {
         method: "DELETE",
       });
 
