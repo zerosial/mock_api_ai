@@ -647,14 +647,41 @@ export default function ProxyMockApisPage() {
     const apiUrl = withBasePath(`/api/proxy/${proxyName}${mockApi.path}`);
     const fullUrl = `${window.location.origin}${apiUrl}`;
 
-    navigator.clipboard
-      .writeText(fullUrl)
-      .then(() => {
-        alert("API URL이 클립보드에 복사되었습니다.");
-      })
-      .catch(() => {
-        alert("클립보드 복사에 실패했습니다.");
-      });
+    try {
+      // Clipboard API 사용 시도 (HTTPS 환경에서만 작동)
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard
+          .writeText(fullUrl)
+          .then(() => {
+            alert("API URL이 클립보드에 복사되었습니다.");
+          })
+          .catch(() => {
+            alert("클립보드 복사에 실패했습니다.");
+          });
+      } else {
+        // Fallback: document.execCommand 사용 (HTTP 환경에서도 작동)
+        const textArea = document.createElement("textarea");
+        textArea.value = fullUrl;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+
+        if (successful) {
+          alert("API URL이 클립보드에 복사되었습니다.");
+        } else {
+          alert("클립보드 복사에 실패했습니다.");
+        }
+      }
+    } catch (error) {
+      console.error("클립보드 복사 실패:", error);
+      alert("클립보드 복사에 실패했습니다.");
+    }
   };
 
   if (loading) {
