@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OpenAI } from "openai";
 import { prisma } from "@/lib/prisma";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
+import { localLLM, createLocalLLMClient } from "@/lib/local-llm";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+// 로컬 LLM 클라이언트 생성 (환경변수에서 URL 가져오기)
+const llmClient = createLocalLLMClient();
 
 interface Field {
   name: string;
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     console.log("Final responseObject:", responseObject);
 
-    // OpenAI API를 사용하여 OpenAPI 스펙 생성
+    // 로컬 LLM을 사용하여 OpenAPI 스펙 생성
     const prompt = `다음 정보를 사용하여 OpenAPI 3.0 JSON 스펙을 만들어 주세요.
 
 API 이름: ${apiName}
@@ -92,21 +93,38 @@ API 이름: ${apiName}
 - 200 응답의 예제 값을 포함해야 합니다.
 - JSON 형식으로만 응답해주세요.`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-nano",
-      messages: [
-        {
-          role: "system",
-          content:
-            "당신은 API 설계자입니다. OpenAPI 3.0 스펙을 생성하는 전문가입니다.",
-        },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.2,
-      max_tokens: 2000,
-    });
+    let completion: any = null;
 
-    const specText = completion.choices[0]?.message?.content || "{}";
+    try {
+      // 로컬 LLM 서비스 상태 확인
+      const health = await llmClient.healthCheck();
+      if (!health.model_loaded) {
+        throw new Error("로컬 LLM 모델이 아직 로드되지 않았습니다.");
+      }
+
+      completion = await llmClient.createChatCompletion({
+        model: "lg-exaone",
+        messages: [
+          {
+            role: "system",
+            content:
+              "당신은 API 설계자입니다. OpenAPI 3.0 스펙을 생성하는 전문가입니다.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 2000,
+      });
+
+      console.log("로컬 LLM 응답:", completion);
+    } catch (llmError) {
+      console.error("로컬 LLM 오류:", llmError);
+      // 로컬 LLM 실패 시 기본 스펙 생성
+      console.log("기본 스펙 생성으로 폴백");
+      completion = null;
+    }
+
+    const specText = completion?.choices?.[0]?.message?.content || "{}";
     let specJson;
 
     try {

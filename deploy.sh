@@ -64,14 +64,24 @@ fi
 
 # 6. 데이터베이스 마이그레이션
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
-docker-compose exec app npx prisma db push
+docker-compose exec mock-api-container npx prisma db push
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Database migration failed!${NC}"
     exit 1
 fi
 
-# 7. 헬스체크
+# 7. 로컬 LLM 서비스 상태 확인
+echo -e "${YELLOW}🤖 Checking Local LLM service status...${NC}"
+sleep 10
+
+if curl -f http://localhost:8000/health > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Local LLM service is healthy!${NC}"
+else
+    echo -e "${YELLOW}⚠️ Local LLM service health check failed, but deployment might still be successful${NC}"
+fi
+
+# 8. 헬스체크
 echo -e "${YELLOW}🏥 Performing health check...${NC}"
 sleep 5
 
@@ -81,8 +91,9 @@ else
     echo -e "${YELLOW}⚠️ Health check failed, but deployment might still be successful${NC}"
 fi
 
-# 8. 완료 메시지
+# 9. 완료 메시지
 echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
 echo -e "${GREEN}🌐 Application URL: http://localhost:3000${NC}"
+echo -e "${GREEN}🤖 Local LLM Service URL: http://localhost:8000${NC}"
 echo -e "${GREEN}📊 Database URL: localhost:5432${NC}"
 echo -e "${YELLOW}📋 To view logs: docker-compose logs -f${NC}" 
