@@ -94,7 +94,7 @@ API 이름: ${apiName}
 - JSON 형식으로만 응답해주세요.`;
 
     let completion: any = null;
-    
+
     try {
       // 로컬 LLM 서비스 상태 확인
       const health = await llmClient.healthCheck();
