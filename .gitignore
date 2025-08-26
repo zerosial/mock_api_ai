@@ -43,5 +43,3 @@ next-env.d.ts
 /lib/generated/prisma
 env.sample
 default.conf
-docker-compose.yml
-Dockerfile.mockapi

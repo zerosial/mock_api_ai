@@ -56,33 +56,67 @@ AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션�
 - **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Database**: PostgreSQL (Prisma ORM)
-- **AI**: OpenAI GPT-4
-- **Deployment**: Vercel
+- **AI**: Local LLM (LG 엑사원 모델) + OpenAI GPT-4 (폴백)
+- **Deployment**: Docker + Docker Compose
 
 ## 설치 및 실행
 
-### 1. 의존성 설치
+### Docker를 사용한 배포 (권장)
+
+#### 1. 환경 변수 설정
+
+`env.example` 파일을 `.env`로 복사하고 필요한 값들을 설정하세요:
+
+```bash
+cp env.example .env
+```
+
+#### 2. Docker Compose로 서비스 시작
+
+```bash
+# 모든 서비스 시작
+docker-compose up -d
+
+# 또는 배포 스크립트 사용
+./deploy.sh
+```
+
+#### 3. 서비스 상태 확인
+
+```bash
+# 컨테이너 상태 확인
+docker-compose ps
+
+# 로그 확인
+docker-compose logs -f local-llm-container
+docker-compose logs -f mock-api-container
+```
+
+### 로컬 개발 환경
+
+#### 1. 의존성 설치
 
 ```bash
 npm install
 ```
 
-### 2. 환경 변수 설정
+#### 2. 환경 변수 설정
 
 `.env` 파일을 생성하고 다음 변수들을 설정하세요:
 
 ```env
-DATABASE_URL="your_postgresql_connection_string"
-OPENAI_API_KEY="your_openai_api_key"
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mockapi"
+LOCAL_LLM_URL="http://localhost:8000"
+OPENAI_API_KEY="your_openai_api_key"  # 폴백용
 ```
 
-### 3. 데이터베이스 마이그레이션
+#### 3. 데이터베이스 마이그레이션
 
 ```bash
 npx prisma migrate dev
 ```
 
-### 4. 개발 서버 실행
+#### 4. 개발 서버 실행
 
 ```bash
 npm run dev
