@@ -93,6 +93,8 @@ API 이름: ${apiName}
 - 200 응답의 예제 값을 포함해야 합니다.
 - JSON 형식으로만 응답해주세요.`;
 
+    let completion: any = null;
+    
     try {
       // 로컬 LLM 서비스 상태 확인
       const health = await llmClient.healthCheck();
@@ -100,7 +102,7 @@ API 이름: ${apiName}
         throw new Error("로컬 LLM 모델이 아직 로드되지 않았습니다.");
       }
 
-      const completion = await llmClient.createChatCompletion({
+      completion = await llmClient.createChatCompletion({
         model: "lg-exaone",
         messages: [
           {
@@ -119,6 +121,7 @@ API 이름: ${apiName}
       console.error("로컬 LLM 오류:", llmError);
       // 로컬 LLM 실패 시 기본 스펙 생성
       console.log("기본 스펙 생성으로 폴백");
+      completion = null;
     }
 
     const specText = completion?.choices?.[0]?.message?.content || "{}";
