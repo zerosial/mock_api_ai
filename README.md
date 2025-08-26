@@ -105,9 +105,11 @@ npm install
 `.env` 파일을 생성하고 다음 변수들을 설정하세요:
 
 ```env
+
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mockapi"
 LOCAL_LLM_URL="http://localhost:8000"
 OPENAI_API_KEY="your_openai_api_key"  # 폴백용
+
 ```
 
 #### 3. 데이터베이스 마이그레이션
