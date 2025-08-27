@@ -1,6 +1,26 @@
 version: "3.8"
 
 services:
+  node-container-uml:
+    build:
+      context: .
+      dockerfile: Dockerfile.mmuml
+    networks:
+      - mm-app-network
+    environment:
+      - FAST_REFRESH=false
+    restart: unless-stopped
+
+  node-container-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.mmdev
+    networks:
+      - mm-app-network
+    environment:
+      - FAST_REFRESH=false
+    restart: unless-stopped
+
   mock-api-container:
     build:
       context: .
@@ -12,7 +32,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres-container:5432/mockapi
       - OPENAI_API_KEY={your-openai-api-key}
-      - LOCAL_LLM_URL=http://localhost:8000
+      - LOCAL_LLM_URL=http://local-llm-container:8000
       - NODE_ENV=production
       - NEXT_PUBLIC_BASE_PATH=/mockapi
     depends_on:
@@ -48,7 +68,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - MODEL_PATH=/app/models/selected-model
+      - MODEL_PATH=LGAI-EXAONE/EXAONE-4.0-1.2B
       - ENVIRONMENT=production
       - TZ=Asia/Seoul
     volumes:
