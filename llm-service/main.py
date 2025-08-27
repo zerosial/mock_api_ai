@@ -6,6 +6,7 @@ LG 엑사원 모델을 사용하여 로컬에서 AI 응답을 생성합니다.
 
 import os
 import logging
+import re
 from typing import List, Dict, Any, Optional
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -186,20 +187,25 @@ def generate_response(messages: List[ChatMessage], max_tokens: int = 1000, tempe
             # CPU에서 모델을 float32로 강제 변환
             model.float()
         
-        # 메시지를 프롬프트로 변환 (EXAONE 모델에 맞는 형식)
-        prompt = ""
-        for msg in messages:
-            if msg.role == "system":
-                prompt += f"<|im_start|>system\n{msg.content}<|im_end|>\n"
-            elif msg.role == "user":
-                prompt += f"<|im_start|>user\n{msg.content}<|im_end|>\n"
-            elif msg.role == "assistant":
-                prompt += f"<|im_start|>assistant\n{msg.content}<|im_end|>\n"
+        # EXAONE 공식 형식 사용: tokenizer.apply_chat_template()
+        # 시스템 메시지가 없으면 한국어 전용 지시 추가
+        has_system_message = any(msg.role == "system" for msg in messages)
+        if not has_system_message:
+            # 시스템 메시지를 맨 앞에 추가
+            messages.insert(0, {
+                "role": "system", 
+                "content": "당신은 한국어로만 답변하는 AI 어시스턴트입니다. 모든 질문에 한국어로만 답변하고, 영어나 다른 언어는 사용하지 마세요. 자연스럽고 정확한 한국어로 답변해주세요."
+            })
         
-        # 간단하고 명확한 프롬프트
-        prompt += "<|im_start|>assistant\n"
+        # EXAONE 공식 chat template 사용
+        input_ids = tokenizer.apply_chat_template(
+            messages,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_tensors="pt"
+        )
         
-        # 토큰화 (최대 길이 설정 포함) - 체계적인 토큰 관리
+        # 토큰 제한 설정 (이미 input_ids로 처리됨)
         # 1단계: 모델의 max_position_embeddings 확인
         if hasattr(model.config, 'max_position_embeddings'):
             model_max_pos = model.config.max_position_embeddings
@@ -224,24 +230,19 @@ def generate_response(messages: List[ChatMessage], max_tokens: int = 1000, tempe
         
         logger.info(f"토큰 제한 설정: 모델={model_max_length}, 모델최대={model_max_pos}, 서비스상한={service_limit}, 최종={effective_max_length}")
         
-        inputs = tokenizer(
-            prompt, 
-            return_tensors="pt", 
-            padding=True, 
-            truncation=True,
-            max_length=effective_max_length
-        )
+        # input_ids는 이미 위에서 생성됨
+        inputs = {"input_ids": input_ids}
         
         # 추론
         with torch.no_grad():
             # 입력 길이 + 요청된 최대 토큰 수를 초과하지 않도록 제한
             max_generate_length = min(
-                inputs.input_ids.shape[1] + max_tokens,
+                input_ids.shape[1] + max_tokens,
                 effective_max_length
             )
             
             # 토큰 길이 검증 및 로깅
-            input_tokens = inputs.input_ids.shape[1]
+            input_tokens = input_ids.shape[1]
             max_output_tokens = max_generate_length - input_tokens
             
             logger.info(f"토큰 생성 설정: 입력={input_tokens}, 최대출력={max_output_tokens}, 총최대={max_generate_length}")
@@ -250,34 +251,30 @@ def generate_response(messages: List[ChatMessage], max_tokens: int = 1000, tempe
             if input_tokens > effective_max_length * 0.8:
                 logger.warning(f"입력 토큰이 너무 깁니다: {input_tokens}/{effective_max_length}")
             
+            # EXAONE 공식 권장 파라미터 사용
             outputs = model.generate(
-                inputs.input_ids,
-                max_length=max_generate_length,
+                input_ids.to(model.device),
+                max_new_tokens=max_tokens,  # EXAONE 공식 형식
                 temperature=temperature,
                 do_sample=True,
                 pad_token_id=tokenizer.pad_token_id,
                 eos_token_id=tokenizer.eos_token_id,
-                repetition_penalty=1.1,  # 기본값으로 복원
+                repetition_penalty=1.1,
                 num_return_sequences=1,
-                # EXAONE 모델에 최적화된 파라미터
-                top_p=0.9,   # 더 안정적인 토큰 선택
-                top_k=50,    # 적당한 토큰 고려
-                no_repeat_ngram_size=3,  # 반복 방지 강화
-                min_length=inputs.input_ids.shape[1] + 20,  # 최소 응답 길이 조정
-                early_stopping=False     # 더 긴 응답 허용
+                # EXAONE 공식 권장 파라미터
+                top_p=0.95,   # 공식 권장값
+                top_k=50,
+                no_repeat_ngram_size=3,
+                min_length=input_ids.shape[1] + 20,
+                early_stopping=False
             )
         
-        # 응답 디코딩
-        response = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+        # 응답 디코딩 (EXAONE 공식 형식)
+        response = tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
         
         # 응답 정리 및 검증
         response = response.strip()
-        
-        # 특수 토큰 및 이상한 문자 제거
-        response = response.replace("<|im_start|>", "").replace("<|im_end|>", "")
-        response = response.replace("</think>", "").replace("<|end_im|>", "")
-        response = response.replace(">>>", "").replace("```", "")
-        
+    
         # 응답이 비어있거나 너무 짧으면 기본 응답 생성
         if not response or len(response) < 5:
             logger.warning("모델 응답이 비어있거나 너무 짧습니다. 기본 응답을 생성합니다.")
