@@ -132,7 +132,7 @@ npm install
 ```env
 
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mockapi"
-LOCAL_LLM_URL="http://localhost:8000"
+LLM_SERVICE_URL="http://localhost:8000"
 OPENAI_API_KEY="your_openai_api_key"  # 폴백용
 
 ```
