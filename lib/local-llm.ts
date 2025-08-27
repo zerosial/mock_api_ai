@@ -4,7 +4,7 @@
  */
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
@@ -40,7 +40,10 @@ export class LocalLLMClient {
   private baseUrl: string;
   private timeout: number;
 
-  constructor(baseUrl: string = 'http://localhost:8000', timeout: number = 30000) {
+  constructor(
+    baseUrl: string = "http://localhost:8000",
+    timeout: number = 30000
+  ) {
     this.baseUrl = baseUrl;
     this.timeout = timeout;
   }
@@ -48,23 +51,29 @@ export class LocalLLMClient {
   /**
    * 로컬 LLM 서비스의 상태를 확인합니다.
    */
-  async healthCheck(): Promise<{ status: string; model_loaded: boolean; model_name?: string }> {
+  async healthCheck(): Promise<{
+    status: string;
+    model_loaded: boolean;
+    model_name?: string;
+  }> {
     try {
       const response = await fetch(`${this.baseUrl}/health`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         signal: AbortSignal.timeout(this.timeout),
       });
 
       if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Health check failed: ${response.status} ${response.statusText}`
+        );
       }
 
       return await response.json();
     } catch (error) {
-      console.error('Local LLM health check failed:', error);
+      console.error("Local LLM health check failed:", error);
       throw error;
     }
   }
@@ -72,12 +81,14 @@ export class LocalLLMClient {
   /**
    * 채팅 완성을 요청합니다.
    */
-  async createChatCompletion(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
+  async createChatCompletion(
+    request: ChatCompletionRequest
+  ): Promise<ChatCompletionResponse> {
     try {
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(request),
         signal: AbortSignal.timeout(this.timeout),
@@ -85,12 +96,14 @@ export class LocalLLMClient {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Chat completion failed: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `Chat completion failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
       return await response.json();
     } catch (error) {
-      console.error('Local LLM chat completion failed:', error);
+      console.error("Local LLM chat completion failed:", error);
       throw error;
     }
   }
@@ -98,12 +111,16 @@ export class LocalLLMClient {
   /**
    * 간단한 텍스트 생성 요청을 처리합니다.
    */
-  async generateText(prompt: string, maxTokens: number = 1000, temperature: number = 0.7): Promise<string> {
+  async generateText(
+    prompt: string,
+    maxTokens: number = 1000,
+    temperature: number = 0.7
+  ): Promise<string> {
     const request: ChatCompletionRequest = {
-      model: 'lg-exaone',
+      model: "lg-exaone",
       messages: [
         {
-          role: 'user',
+          role: "user",
           content: prompt,
         },
       ],
@@ -113,9 +130,9 @@ export class LocalLLMClient {
 
     try {
       const response = await this.createChatCompletion(request);
-      return response.choices[0]?.message?.content || '';
+      return response.choices[0]?.message?.content || "";
     } catch (error) {
-      console.error('Text generation failed:', error);
+      console.error("Text generation failed:", error);
       throw error;
     }
   }
@@ -139,6 +156,6 @@ export const localLLM = new LocalLLMClient();
 
 // 환경변수에서 URL을 가져오는 팩토리 함수
 export function createLocalLLMClient(): LocalLLMClient {
-  const baseUrl = process.env.LOCAL_LLM_URL || 'http://localhost:8000';
+  const baseUrl = process.env.LLM_SERVICE_URL || "http://localhost:8000";
   return new LocalLLMClient(baseUrl);
-} 
+}

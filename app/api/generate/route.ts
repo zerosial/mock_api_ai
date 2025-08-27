@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
-import { localLLM, createLocalLLMClient } from "@/lib/local-llm";
+import {
+  localLLM,
+  createLocalLLMClient,
+  ChatCompletionResponse,
+} from "@/lib/local-llm";
 
 // 로컬 LLM 클라이언트 생성 (환경변수에서 URL 가져오기)
 const llmClient = createLocalLLMClient();
@@ -48,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 응답 필드를 객체로 변환 (사용자가 지정한 값이 있으면 그 값을 사용, 없으면 타입 사용)
-    const responseObject: Record<string, any> = {};
+    const responseObject: Record<string, unknown> = {};
 
     // 디버깅을 위한 로그
     console.log("Received mockData:", mockData);
@@ -93,7 +97,7 @@ API 이름: ${apiName}
 - 200 응답의 예제 값을 포함해야 합니다.
 - JSON 형식으로만 응답해주세요.`;
 
-    let completion: any = null;
+    let completion: ChatCompletionResponse | null = null;
 
     try {
       // 로컬 LLM 서비스 상태 확인
@@ -103,12 +107,12 @@ API 이름: ${apiName}
       }
 
       completion = await llmClient.createChatCompletion({
-        model: "lg-exaone",
+        model: "exaone-4.0-1.2b",
         messages: [
           {
             role: "system",
             content:
-              "당신은 API 설계자입니다. OpenAPI 3.0 스펙을 생성하는 전문가입니다.",
+              "당신은 API 설계자입니다. OpenAPI 3.0 스펙을 생성하는 전문가입니다. JSON 형식으로만 응답해주세요.",
           },
           { role: "user", content: prompt },
         ],

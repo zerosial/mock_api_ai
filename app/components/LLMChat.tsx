@@ -171,8 +171,6 @@ export default function LLMChat() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="exaone-4.0-1.2b">EXAONE 4.0 1.2B</option>
-                <option value="exaone-4.0-32b">EXAONE 4.0 32B</option>
-                <option value="lg-exaone">LG EXAONE</option>
               </select>
             </div>
             <div>

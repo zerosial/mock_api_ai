@@ -10,7 +10,27 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     workerThreads: false,
+    proxyTimeout: 600000,
     cpus: 1,
+  },
+  // API route 타임아웃 설정 (10분)
+  async headers() {
+    return [
+      {
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Connection",
+            value: "keep-alive",
+          },
+        ],
+      },
+    ];
+  },
+  // 서버 타임아웃 설정
+  serverRuntimeConfig: {
+    // API route 타임아웃을 10분으로 설정
+    apiTimeout: 10 * 60 * 1000,
   },
 };
 
