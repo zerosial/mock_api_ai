@@ -96,7 +96,32 @@ AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션�
 cp env.example .env
 ```
 
-#### 2. Docker Compose로 서비스 시작
+#### 2. Docker 이미지 빌드
+
+**Windows:**
+
+```bash
+build-docker.bat
+```
+
+**Linux/Mac:**
+
+```bash
+chmod +x build-docker.sh
+./build-docker.sh
+```
+
+또는 수동으로 빌드:
+
+```bash
+# Mock API 이미지 빌드
+docker build -f Dockerfile.mockapi -t mock-api-ai:latest .
+
+# LLM 서비스 이미지 빌드
+docker build -f Dockerfile.llm -t mock-api-ai-llm:latest .
+```
+
+#### 3. Docker Compose로 서비스 시작
 
 ```bash
 # 모든 서비스 시작

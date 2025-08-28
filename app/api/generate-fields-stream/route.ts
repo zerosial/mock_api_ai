@@ -136,15 +136,21 @@ JSON 형식으로만 응답해주세요.`,
                         // 첫 번째 청크가 아닌 경우에만 진행 상황 전송
                         if (!isFirstChunk) {
                           try {
-                            controller.enqueue(
-                              encoder.encode(
-                                `data: ${JSON.stringify({
-                                  type: "progress",
-                                  content: content,
-                                  timestamp: new Date().toISOString(),
-                                })}\n\n`
-                              )
-                            );
+                            // 컨트롤러가 아직 열려있는지 확인
+                            if (
+                              controller &&
+                              typeof controller.enqueue === "function"
+                            ) {
+                              controller.enqueue(
+                                encoder.encode(
+                                  `data: ${JSON.stringify({
+                                    type: "progress",
+                                    content: content,
+                                    timestamp: new Date().toISOString(),
+                                  })}\n\n`
+                                )
+                              );
+                            }
                           } catch (controllerError) {
                             console.error(
                               "컨트롤러 진행 상황 전송 실패:",
@@ -181,6 +187,19 @@ JSON 형식으로만 응답해주세요.`,
 
             // 생성된 필드 파싱 및 전송
             try {
+              // JSON이 완전한지 확인 (중괄호 개수 체크)
+              const openBraces = (fullResponse.match(/\{/g) || []).length;
+              const closeBraces = (fullResponse.match(/\}/g) || []).length;
+
+              // JSON이 완전하지 않으면 기본 필드 사용
+              if (openBraces !== closeBraces) {
+                console.log("JSON이 완전하지 않음, 기본 필드 사용:", {
+                  openBraces,
+                  closeBraces,
+                });
+                throw new Error("JSON이 완전하지 않습니다");
+              }
+
               const generatedFields = JSON.parse(fullResponse);
 
               // 필드 검증 및 정리
@@ -539,7 +558,10 @@ JSON 형식으로만 응답해주세요.`,
           }
         } finally {
           try {
-            controller.close();
+            // 컨트롤러가 이미 닫혀있지 않은 경우에만 닫기
+            if (controller && typeof controller.close === "function") {
+              controller.close();
+            }
           } catch (closeError) {
             console.error("컨트롤러 닫기 오류:", closeError);
           }

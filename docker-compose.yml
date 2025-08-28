@@ -1,26 +1,6 @@
 version: "3.8"
 
 services:
-  node-container-uml:
-    build:
-      context: .
-      dockerfile: Dockerfile.mmuml
-    networks:
-      - mm-app-network
-    environment:
-      - FAST_REFRESH=false
-    restart: unless-stopped
-
-  node-container-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile.mmdev
-    networks:
-      - mm-app-network
-    environment:
-      - FAST_REFRESH=false
-    restart: unless-stopped
-
   mock-api-container:
     build:
       context: .
@@ -31,13 +11,19 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres-container:5432/mockapi
-      - OPENAI_API_KEY={your-openai-api-key}
+      - OPENAI_API_KEY={your-openai-api-key} # 폴백용 키
       - LLM_SERVICE_URL=http://local-llm-container:8000
       - NODE_ENV=production
       - NEXT_PUBLIC_BASE_PATH=/mockapi
     depends_on:
       postgres-container:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/llm/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
 
   postgres-container:
@@ -72,32 +58,33 @@ services:
       - ENVIRONMENT=production
       - TZ=Asia/Seoul
     volumes:
-      - llm_models:/app/models
+      - llm_health_logs:/tmp
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "/app/health_check.sh"]
       interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 5s
     restart: unless-stopped
 
-  nginx-container:
-    build:
-      context: .
-      dockerfile: Dockerfile.nginx
-    ports:
-      - "8720:8720"
-    depends_on:
-      - mock-api-container
-      - postgres-container
-      - local-llm-container
-    networks:
-      - mm-app-network
-    restart: unless-stopped
+  # nginx 프록시용 셈플
+  # nginx-container:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.nginx
+  #   ports:
+  #     - "8720:8720"
+  #   depends_on:
+  #     - mock-api-container
+  #     - postgres-container
+  #     - local-llm-container
+  #   networks:
+  #     - mm-app-network
+  #   restart: unless-stopped
 
 networks:
   mm-app-network:
 
 volumes:
   postgres_data:
-  llm_models:
+  llm_health_logs:
