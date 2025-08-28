@@ -216,7 +216,10 @@ JSON 형식으로만 응답해주세요.`,
                 generatedData.mockData &&
                 typeof generatedData.mockData === "object"
               ) {
-                const extractFieldValues = (obj: any, parentKey = "") => {
+                const extractFieldValues = (
+                  obj: Record<string, unknown>,
+                  parentKey = ""
+                ) => {
                   const fields: Field[] = [];
 
                   for (const [key, value] of Object.entries(obj)) {
@@ -228,7 +231,12 @@ JSON 형식으로만 응답해주세요.`,
                       !Array.isArray(value)
                     ) {
                       // 중첩 객체인 경우 재귀적으로 처리
-                      fields.push(...extractFieldValues(value, fullKey));
+                      fields.push(
+                        ...extractFieldValues(
+                          value as Record<string, unknown>,
+                          fullKey
+                        )
+                      );
                     } else {
                       // 기본 값인 경우 필드로 추가
                       let type = "string";

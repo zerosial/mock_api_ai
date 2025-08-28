@@ -201,7 +201,11 @@ export default function CreateCustomPage() {
       const jsonData = JSON.parse(jsonInput);
       const fields: Field[] = [];
 
-      const processValue = (key: string, value: any, parentKey = ""): Field => {
+      const processValue = (
+        key: string,
+        value: unknown,
+        parentKey = ""
+      ): Field => {
         const fullKey = parentKey ? `${parentKey}.${key}` : key;
 
         let type = "string";
@@ -247,7 +251,10 @@ export default function CreateCustomPage() {
         };
       };
 
-      const extractFields = (obj: any, parentKey = ""): Field[] => {
+      const extractFields = (
+        obj: Record<string, unknown>,
+        parentKey = ""
+      ): Field[] => {
         const fields: Field[] = [];
 
         for (const [key, value] of Object.entries(obj)) {
@@ -258,7 +265,10 @@ export default function CreateCustomPage() {
           ) {
             // 중첩 객체인 경우 재귀적으로 처리
             fields.push(
-              ...extractFields(value, parentKey ? `${parentKey}.${key}` : key)
+              ...extractFields(
+                value as Record<string, unknown>,
+                parentKey ? `${parentKey}.${key}` : key
+              )
             );
           } else {
             // 기본 값인 경우 필드로 추가
@@ -357,9 +367,9 @@ export default function CreateCustomPage() {
 
     try {
       // 응답 필드에서 사용자가 지정한 값들을 mockData로 변환
-      const mockData: Record<string, any> = {};
+      const mockData: Record<string, unknown> = {};
 
-      const processFieldValue = (field: Field): any => {
+      const processFieldValue = (field: Field): unknown => {
         const fieldValue = field.value || "";
 
         if (fieldValue.trim() === "") {
@@ -416,13 +426,13 @@ export default function CreateCustomPage() {
         if (field.name.includes(".")) {
           // 중첩 필드인 경우 (예: profile.age)
           const keys = field.name.split(".");
-          let current = mockData;
+          let current = mockData as Record<string, unknown>;
 
           for (let i = 0; i < keys.length - 1; i++) {
             if (!current[keys[i]]) {
               current[keys[i]] = {};
             }
-            current = current[keys[i]];
+            current = current[keys[i]] as Record<string, unknown>;
           }
 
           current[keys[keys.length - 1]] = value;
@@ -446,11 +456,11 @@ export default function CreateCustomPage() {
       });
 
       // 중첩 객체에서도 빈 값 제거
-      const cleanNestedObjects = (obj: any) => {
+      const cleanNestedObjects = (obj: Record<string, unknown>) => {
         Object.keys(obj).forEach((key) => {
           if (obj[key] && typeof obj[key] === "object") {
-            cleanNestedObjects(obj[key]);
-            if (Object.keys(obj[key]).length === 0) {
+            cleanNestedObjects(obj[key] as Record<string, unknown>);
+            if (Object.keys(obj[key] as Record<string, unknown>).length === 0) {
               delete obj[key];
             }
           }

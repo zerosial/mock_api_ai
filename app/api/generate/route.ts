@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma";
 import { isReservedProjectName, isReservedUserName } from "@/lib/constants";
 import {
   localLLM,
@@ -175,7 +176,7 @@ API 이름: ${apiName}
         requestSpec: requestFields,
         responseSpec: responseFields,
         generatedCode: JSON.stringify(specJson),
-        mockData: responseObject,
+        mockData: responseObject as Prisma.InputJsonValue,
       },
     });
 

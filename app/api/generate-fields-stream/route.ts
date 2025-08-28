@@ -357,7 +357,10 @@ JSON 형식으로만 응답해주세요.`,
 
                 if (content) {
                   try {
-                    const generatedFields = JSON.parse(content);
+                    const generatedFields = JSON.parse(content) as Record<
+                      string,
+                      unknown
+                    >;
 
                     // 필드 검증 및 정리
                     const validatedFields = {
