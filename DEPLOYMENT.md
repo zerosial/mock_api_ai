@@ -66,7 +66,7 @@ curl http://localhost:8000/health
 
 ```env
 # 로컬 LLM 서비스
-LOCAL_LLM_URL=http://localhost:8000
+LLM_SERVICE_URL=http://localhost:8000
 
 # 데이터베이스
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mockapi
@@ -98,6 +98,7 @@ curl http://localhost:8000/health
 ```
 
 **해결 방법**:
+
 - 컨테이너 재시작: `docker-compose restart local-llm-container`
 - 모델 다운로드 재시도: `docker-compose exec local-llm-container python download_model.py`
 
@@ -216,4 +217,4 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 ---
 
-**참고**: 이 서비스는 개발 및 테스트 환경을 위한 것입니다. 프로덕션 환경에서는 보안 및 성능을 고려한 추가 설정이 필요할 수 있습니다. 
+**참고**: 이 서비스는 개발 및 테스트 환경을 위한 것입니다. 프로덕션 환경에서는 보안 및 성능을 고려한 추가 설정이 필요할 수 있습니다.

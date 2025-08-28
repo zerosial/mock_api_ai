@@ -487,34 +487,6 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 액션 버튼 */}
-        <div className="mb-8 flex space-x-4">
-          <Link
-            href="/create"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            새 API 생성 (랜덤 값)
-          </Link>
-          <Link
-            href="/create-custom"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-          >
-            커스텀 API 생성 (AI 값 생성)
-          </Link>
-          <Link
-            href="/create-json"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-          >
-            JSON으로 API 생성
-          </Link>
-          <Link
-            href="/proxy"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-          >
-            프록시 서버 관리
-          </Link>
-        </div>
-
         {/* 예약된 이름 안내 */}
         <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex">

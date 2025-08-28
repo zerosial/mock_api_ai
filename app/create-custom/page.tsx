@@ -39,6 +39,9 @@ export default function CreateCustomPage() {
   const [jsonInput, setJsonInput] = useState<string>("");
   const [showJsonInput, setShowJsonInput] = useState<boolean>(false);
 
+  const [streamingContent, setStreamingContent] = useState<string>("");
+  const [showStreamingModal, setShowStreamingModal] = useState<boolean>(false);
+
   const generateFieldsWithAI = async () => {
     if (!formData.apiName.trim() || !formData.description.trim()) {
       setError("API 이름과 설명을 입력해주세요.");
@@ -47,10 +50,12 @@ export default function CreateCustomPage() {
 
     setGenerating(true);
     setError(null);
+    setStreamingContent("");
+    setShowStreamingModal(true);
 
     try {
       const response = await fetch(
-        withBasePath("/api/generate-fields-with-values"),
+        withBasePath("/api/generate-fields-with-values-stream"),
         {
           method: "POST",
           headers: {
@@ -65,20 +70,88 @@ export default function CreateCustomPage() {
         }
       );
 
-      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-      if (response.ok && result.success) {
-        // AI가 생성한 필드와 값들을 그대로 사용
-        setGeneratedFields(result.fields);
-        setAiGenerated(result.aiGenerated);
-      } else {
-        setError(result.error || "필드 생성에 실패했습니다.");
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("스트림을 읽을 수 없습니다.");
+      }
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = new TextDecoder().decode(value);
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = line.slice(6);
+              try {
+                const parsed = JSON.parse(data);
+
+                switch (parsed.type) {
+                  case "start":
+                    setStreamingContent(
+                      (prev) => prev + `🚀 ${parsed.message}\n`
+                    );
+                    break;
+                  case "progress":
+                    setStreamingContent((prev) => prev + parsed.content);
+                    break;
+                  case "complete":
+                    setStreamingContent(
+                      (prev) => prev + `\n✅ ${parsed.message}\n`
+                    );
+                    break;
+                  case "fields":
+                    setGeneratedFields(parsed.fields);
+                    setAiGenerated(parsed.aiGenerated);
+                    const message = parsed.message || "";
+                    setStreamingContent(
+                      (prev) =>
+                        prev +
+                        `\n🎯 필드 및 값 생성 완료! ${parsed.fields.responseFields.length}개의 응답 필드가 생성되었습니다.\n` +
+                        (message ? `\n💡 ${message}\n` : "")
+                    );
+                    break;
+                  case "error":
+                    setError(parsed.message);
+                    setStreamingContent(
+                      (prev) => prev + `\n❌ ${parsed.message}\n`
+                    );
+                    break;
+                }
+              } catch (e) {
+                // JSON 파싱 실패 시 무시
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
       }
     } catch (error) {
       console.error("필드 생성 오류:", error);
       setError("필드 생성 중 오류가 발생했습니다.");
+      setStreamingContent(
+        (prev) =>
+          prev +
+          `\n❌ 오류 발생: ${
+            error instanceof Error ? error.message : "알 수 없는 오류"
+          }\n`
+      );
     } finally {
       setGenerating(false);
+      // 오류가 발생했거나 필드가 생성되지 않았으면 더 오래 모달을 유지
+      const delay =
+        error || generatedFields.responseFields.length === 0 ? 10000 : 5000; // 10초 또는 5초
+      setTimeout(() => {
+        setShowStreamingModal(false);
+      }, delay);
     }
   };
 
@@ -128,7 +201,11 @@ export default function CreateCustomPage() {
       const jsonData = JSON.parse(jsonInput);
       const fields: Field[] = [];
 
-      const processValue = (key: string, value: any, parentKey = ""): Field => {
+      const processValue = (
+        key: string,
+        value: unknown,
+        parentKey = ""
+      ): Field => {
         const fullKey = parentKey ? `${parentKey}.${key}` : key;
 
         let type = "string";
@@ -174,7 +251,10 @@ export default function CreateCustomPage() {
         };
       };
 
-      const extractFields = (obj: any, parentKey = ""): Field[] => {
+      const extractFields = (
+        obj: Record<string, unknown>,
+        parentKey = ""
+      ): Field[] => {
         const fields: Field[] = [];
 
         for (const [key, value] of Object.entries(obj)) {
@@ -185,7 +265,10 @@ export default function CreateCustomPage() {
           ) {
             // 중첩 객체인 경우 재귀적으로 처리
             fields.push(
-              ...extractFields(value, parentKey ? `${parentKey}.${key}` : key)
+              ...extractFields(
+                value as Record<string, unknown>,
+                parentKey ? `${parentKey}.${key}` : key
+              )
             );
           } else {
             // 기본 값인 경우 필드로 추가
@@ -284,9 +367,9 @@ export default function CreateCustomPage() {
 
     try {
       // 응답 필드에서 사용자가 지정한 값들을 mockData로 변환
-      const mockData: Record<string, any> = {};
+      const mockData: Record<string, unknown> = {};
 
-      const processFieldValue = (field: Field): any => {
+      const processFieldValue = (field: Field): unknown => {
         const fieldValue = field.value || "";
 
         if (fieldValue.trim() === "") {
@@ -343,13 +426,13 @@ export default function CreateCustomPage() {
         if (field.name.includes(".")) {
           // 중첩 필드인 경우 (예: profile.age)
           const keys = field.name.split(".");
-          let current = mockData;
+          let current = mockData as Record<string, unknown>;
 
           for (let i = 0; i < keys.length - 1; i++) {
             if (!current[keys[i]]) {
               current[keys[i]] = {};
             }
-            current = current[keys[i]];
+            current = current[keys[i]] as Record<string, unknown>;
           }
 
           current[keys[keys.length - 1]] = value;
@@ -373,11 +456,11 @@ export default function CreateCustomPage() {
       });
 
       // 중첩 객체에서도 빈 값 제거
-      const cleanNestedObjects = (obj: any) => {
+      const cleanNestedObjects = (obj: Record<string, unknown>) => {
         Object.keys(obj).forEach((key) => {
           if (obj[key] && typeof obj[key] === "object") {
-            cleanNestedObjects(obj[key]);
-            if (Object.keys(obj[key]).length === 0) {
+            cleanNestedObjects(obj[key] as Record<string, unknown>);
+            if (Object.keys(obj[key] as Record<string, unknown>).length === 0) {
               delete obj[key];
             }
           }
@@ -954,6 +1037,60 @@ export default function CreateCustomPage() {
           </div>
         </form>
       </div>
+
+      {/* 스트리밍 모달 */}
+      {showStreamingModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  🤖 AI 필드 및 값 생성 진행 상황
+                </h3>
+                <button
+                  onClick={() => setShowStreamingModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              <div
+                className={`p-4 rounded-md font-mono text-sm h-96 overflow-y-auto ${
+                  error
+                    ? "bg-red-900 text-red-400"
+                    : "bg-gray-900 text-green-400"
+                }`}
+              >
+                <pre className="whitespace-pre-wrap">
+                  {streamingContent || "AI가 필드와 값을 생성하고 있습니다..."}
+                </pre>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setShowStreamingModal(false)}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

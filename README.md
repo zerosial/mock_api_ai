@@ -23,6 +23,13 @@ AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션�
 - **실시간 테스트**: 생성된 API를 즉시 테스트 가능
 - **JSON 편집**: 응답 데이터를 실시간으로 편집 가능
 
+### 4. 로컬 LLM 채팅 (신규!)
+
+- **AI 대화**: 도커 환경에서 실행 중인 로컬 AI 모델과 실시간 대화
+- **LG 엑사원 모델**: 한국어에 특화된 고성능 AI 모델 사용
+- **커스터마이징**: 모델, 토큰 수, 창의성 등 파라미터 조정 가능
+- **상태 모니터링**: LLM 서비스 연결 상태 및 모델 로딩 상태 실시간 확인
+
 ## 사용법
 
 ### Mock API 생성
@@ -50,6 +57,24 @@ AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션�
    - `/api/proxy/mobilemanager/users/123` 접속
    - Mock API가 있으면 Mock 데이터 반환
    - Mock API가 없으면 `https://mobilemanager.com/users/123`으로 프록시
+
+### 로컬 LLM 채팅 사용
+
+1. **채팅 페이지 접속**
+
+   - `/llm-chat` 페이지에서 AI와 대화 시작
+   - 실시간으로 서비스 상태 및 모델 로딩 상태 확인
+
+2. **AI 모델 설정**
+
+   - 모델 선택: EXAONE 4.0 1.2B, 32B 등
+   - 최대 토큰 수 조정 (100-4096)
+   - 창의성(Temperature) 조정 (0.0-1.0)
+
+3. **대화 시작**
+   - 메시지 입력 후 Enter 또는 전송 버튼 클릭
+   - AI가 컨텍스트를 고려하여 응답 생성
+   - 대화 기록 저장 및 초기화 기능
 
 ## 기술 스택
 
@@ -107,7 +132,7 @@ npm install
 ```env
 
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mockapi"
-LOCAL_LLM_URL="http://localhost:8000"
+LLM_SERVICE_URL="http://localhost:8000"
 OPENAI_API_KEY="your_openai_api_key"  # 폴백용
 
 ```
