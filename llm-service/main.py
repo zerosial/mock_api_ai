@@ -1,59 +1,70 @@
 #!/usr/bin/env python3
 """
 Local LLM Service for Mock API AI
-LG 엑사원 모델을 사용하여 로컬에서 AI 응답을 생성합니다.
+EXAONE 4.0 1.2B 기반 로컬 AI 응답 서비스
+- 비스트리밍: OpenAI Chat Completions JSON
+- 스트리밍: OpenAI SSE(chat.completion.chunk)
+- CPU 동적 양자화: 안전 모드(레이어-단위) + 실패 시 폴백
 """
 
 import os
+import time
+import json
+import gc
 import logging
-import re
+import threading
+from contextlib import asynccontextmanager
 from typing import List, Dict, Any, Optional
+
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+import torch.nn as nn
+import torch.nn.quantized.dynamic as nnqd
+from transformers import (
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    TextIteratorStreamer,
+)
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field, ConfigDict
 import uvicorn
 
-# 로깅 설정
+# -----------------------
+# 로깅
+# -----------------------
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("local-llm")
 
-# FastAPI 앱 초기화
-app = FastAPI(
-    title="Local LLM Service",
-    description="LG 엑사원 모델을 사용한 로컬 AI 서비스",
-    version="1.0.0"
-)
+# -----------------------
+# 환경변수
+# -----------------------
+DEFAULT_MODEL = os.getenv("MODEL_PATH", "LGAI-EXAONE/EXAONE-4.0-1.2B")
+ENABLE_DYNAMIC_INT8 = os.getenv("ENABLE_DYNAMIC_INT8", "1") == "1"  # CPU int8 시도 여부
+SAFE_QUANT = os.getenv("SAFE_QUANT", "1") == "1"                    # 안전 모드(레이어-단위) 사용 여부
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production")
 
-# CORS 설정
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# -----------------------
+# Pydantic 베이스(보호 네임스페이스 경고 제거)
+# -----------------------
+class BaseSchema(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
 
-# 모델 및 토크나이저 전역 변수
-model = None
-tokenizer = None
-model_loaded = False
-model_max_length = 4096  # 기본 최대 길이를 4096으로 증가
-
-# Pydantic 모델들
-class ChatMessage(BaseModel):
+# -----------------------
+# 스키마
+# -----------------------
+class ChatMessage(BaseSchema):
     role: str = Field(..., description="메시지 역할 (system, user, assistant)")
     content: str = Field(..., description="메시지 내용")
 
-class ChatCompletionRequest(BaseModel):
-    model: str = Field(default="lg-exaone", description="사용할 모델명")
+class ChatCompletionRequest(BaseSchema):
+    model: str = Field(default="lg-exaone", description="사용할 모델명(라벨)")
     messages: List[ChatMessage] = Field(..., description="대화 메시지 목록")
-    max_tokens: Optional[int] = Field(default=3072, description="최대 토큰 수 (권장: 2048~4096)")
-    temperature: Optional[float] = Field(default=0.7, description="창의성 조절 (0.0-1.0)")
+    max_tokens: Optional[int] = Field(default=512, description="최대 생성 토큰 수")
+    temperature: Optional[float] = Field(default=0.7, description="창의성 (0.0-1.0)")
     stream: Optional[bool] = Field(default=False, description="스트리밍 응답 여부")
 
-class ChatCompletionResponse(BaseModel):
+class ChatCompletionResponse(BaseSchema):
     id: str
     object: str = "chat.completion"
     created: int
@@ -61,248 +72,398 @@ class ChatCompletionResponse(BaseModel):
     choices: List[Dict[str, Any]]
     usage: Dict[str, int]
 
-class HealthResponse(BaseModel):
+class HealthResponse(BaseSchema):
     status: str
     model_loaded: bool
     model_name: Optional[str] = None
 
-def load_model():
-    """LG 엑사원 모델을 로드합니다."""
-    global model, tokenizer, model_loaded
-    
-    try:
-        logger.info("모델 로딩 시작...")
-        
-        # 모델 경로 설정 (환경변수에서 가져오거나 기본값 사용)
-        model_path = os.getenv("MODEL_PATH", "LGAI-EXAONE/EXAONE-4.0-1.2B")
-        
-        # LGAI-EXAONE 모델들을 우선적으로 시도 (Transformers 호환 모델만)
-        model_candidates = [
-            "LGAI-EXAONE/EXAONE-4.0-1.2B",       # 1순위: 작은 모델 (빠른 로딩)
-            "LGAI-EXAONE/EXAONE-4.0-32B",        # 2순위: 큰 모델 (높은 품질)
-            "beomi/KoAlpaca-Polyglot-12.8B"      # 3순위: 폴백 모델
-        ]
-        
-        # 환경변수에서 지정된 모델이 있으면 우선 사용
-        if model_path and model_path != "/app/models/selected-model":
-            model_candidates.insert(0, model_path)
-        
-        # 모델 로딩 시도
-        model_loaded_successfully = False
-        for candidate in model_candidates:
-            try:
-                logger.info(f"모델 로딩 시도 중: {candidate}")
-                model_path = candidate
-                # 실제로 모델이 존재하는지 확인
-                logger.info(f"모델 {candidate} 확인 중...")
-                # 더 안전한 방법으로 모델 존재 여부 확인
-                test_tokenizer = AutoTokenizer.from_pretrained(
-                    candidate, 
-                    trust_remote_code=True,
-                    use_fast=False,  # 느리지만 더 안정적인 토크나이저 사용
-                    local_files_only=False  # 로컬 파일만 사용하지 않음
-                )
-                logger.info(f"모델 {candidate} 확인 완료, 이 모델을 사용합니다.")
-                break
-            except Exception as e:
-                logger.warning(f"모델 {candidate} 확인 실패, 다음 모델 시도: {str(e)}")
-                continue
-        
-        logger.info(f"모델 로딩 중: {model_path}")
-        logger.info("토크나이저 로딩 시작...")
-        
-        # 토크나이저 로드
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-            use_fast=False
-        )
-        
-        # 토크나이저 설정
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        
-        # 모델의 최대 길이 설정
-        global model_max_length
-        if hasattr(tokenizer, 'model_max_length'):
-            # 토크나이저의 최대 길이를 2048~4096 범위로 조정
-            raw_max_length = tokenizer.model_max_length
-            if raw_max_length > 1000000:  # 100만 이상이면 비정상
-                model_max_length = 4096  # 더 큰 기본값 사용
-                logger.warning(f"토크나이저 최대 길이가 비정상적으로 큽니다: {raw_max_length}, 기본값 {model_max_length}로 설정")
-            elif raw_max_length < 2048:
-                model_max_length = 2048  # 최소값 보장
-            elif raw_max_length > 4096:
-                model_max_length = 4096  # 최대값 제한
-            else:
-                model_max_length = raw_max_length
-        else:
-            model_max_length = 4096  # 기본값을 4096으로 증가
-        
-        logger.info(f"토크나이저 최대 길이: {model_max_length}")
-        
-        logger.info("토크나이저 로딩 완료")
-        logger.info("모델 로딩 시작...")
-        
-        # 모델 로드 (EXAONE 4.0 공식 문서 기반)
-        if torch.cuda.is_available():
-            logger.info("GPU 환경에서 bfloat16으로 모델 로딩...")
-            # GPU 환경에서는 bfloat16 사용 (EXAONE 4.0 권장)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=torch.bfloat16,
-                low_cpu_mem_usage=True,
-                device_map="auto"
-            )
-        else:
-            logger.info("CPU 환경에서 float32로 모델 로딩...")
-            # CPU 환경에서는 float32 사용 (호환성)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                torch_dtype=torch.float32,
-                low_cpu_mem_usage=True,
-                # CPU에서 float16 관련 문제 방지
-                attn_implementation="eager"
-            )
-            # CPU에서 모델을 float32로 강제 변환
-            model = model.float()
-        
-        logger.info("모델 로딩 완료!")
-        model_loaded = True
-        logger.info("모델 로딩 완료! 서비스 준비 완료!")
-        
-    except Exception as e:
-        logger.error(f"모델 로딩 실패: {str(e)}")
-        model_loaded = False
-        raise
+# -----------------------
+# 전역 상태
+# -----------------------
+app: FastAPI  # lifespan에서 초기화
+model = None
+tokenizer = None
+model_loaded = False
+model_max_length = 4096
 
-def generate_response(messages: List[ChatMessage], max_tokens: int = 1000, temperature: float = 0.7) -> str:
-    """메시지에 대한 응답을 생성합니다."""
+# -----------------------
+# CPU 스레드 고정
+# -----------------------
+_THREADS_SET = False
+def _set_cpu_threads():
+    global _THREADS_SET
+    if _THREADS_SET:
+        return
+    try:
+        n = max(1, os.cpu_count() or 1)
+        os.environ.setdefault("OMP_NUM_THREADS", str(n))
+        os.environ.setdefault("MKL_NUM_THREADS", str(n))
+        torch.set_num_threads(n)
+        logger.info(f"CPU threads set to {n}")
+    except Exception as e:
+        logger.warning(f"Thread setting skipped: {e}")
+    _THREADS_SET = True
+
+_set_cpu_threads()
+
+# -----------------------
+# 메모리/양자화 보조 유틸
+# -----------------------
+def _estimate_model_bytes(m: nn.Module) -> int:
+    """모델 파라미터/버퍼 기준 대략적 바이트 수 추정"""
+    total = 0
+    for p in m.parameters(recurse=True):
+        total += p.numel() * p.element_size()
+    for b in m.buffers(recurse=True):
+        total += b.numel() * b.element_size()
+    return total
+
+def _available_memory_bytes() -> Optional[int]:
+    try:
+        import psutil
+        return int(psutil.virtual_memory().available)
+    except Exception:
+        return None  # psutil 없으면 스킵
+
+def _count_quant_linear(m: nn.Module) -> int:
+    return sum(1 for _n, mod in m.named_modules() if isinstance(mod, nnqd.Linear))
+
+def _safe_dynamic_quantize_linear_inplace(m: nn.Module):
+    """
+    레이어-단위(in-place) 동적 양자화로 피크 메모리 사용량을 줄임.
+    Linear 모듈만 qint8로 교체.
+    """
+    for name, child in list(m.named_children()):
+        if isinstance(child, nn.Linear):
+            try:
+                q_child = torch.quantization.quantize_dynamic(child, {nn.Linear}, dtype=torch.qint8)
+                setattr(m, name, q_child)
+                del child
+                gc.collect()
+            except Exception as e:
+                logger.warning(f"[SAFE_QUANT] {name} 양자화 실패: {e}")
+        else:
+            _safe_dynamic_quantize_linear_inplace(child)
+
+# -----------------------
+# 공통 유틸
+# -----------------------
+def _ensure_system_message(msgs: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    if any(m.get("role") == "system" for m in msgs):
+        return msgs
+    return [{"role": "system", "content": "한국어로 간결하고 정확하게 답변하세요."}] + msgs
+
+def _build_input_ids(messages: List[Dict[str, str]], include_system: bool = True):
+    msgs = [dict(role=m["role"], content=m["content"]) for m in messages]
+    if include_system:
+        msgs = _ensure_system_message(msgs)
+    input_ids = tokenizer.apply_chat_template(
+        msgs,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    )
+    return input_ids
+
+def _build_input_ids_for_stream(messages: List[Dict[str, str]]):
+    """스트림 모드용: 시스템 메시지 포함하여 입력 생성하되, 출력에서는 제외"""
+    msgs = [dict(role=m["role"], content=m["content"]) for m in messages]
+    msgs = _ensure_system_message(msgs)
+    input_ids = tokenizer.apply_chat_template(
+        msgs,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    )
+    return input_ids, len(msgs) - 1  # 시스템 메시지 개수 반환
+
+# -----------------------
+# 모델 로드 (안전 양자화 포함)
+# -----------------------
+def load_model():
+    global model, tokenizer, model_loaded, model_max_length
+    logger.info("모델 로딩 시작...")
+
+    model_path = DEFAULT_MODEL
+
+    # 토크나이저: fast 우선, 실패 시 slow
+    try:
+        tokenizer_local = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True, use_fast=True
+        )
+        logger.info("Fast tokenizer 사용")
+    except Exception as e:
+        logger.warning(f"Fast tokenizer 실패: {e} → slow tokenizer로 폴백")
+        tokenizer_local = AutoTokenizer.from_pretrained(
+            model_path, trust_remote_code=True, use_fast=False
+        )
+
+    if tokenizer_local.pad_token is None:
+        tokenizer_local.pad_token = tokenizer_local.eos_token
+
+    raw_max_len = getattr(tokenizer_local, "model_max_length", 4096)
+    max_len = max(2048, min(4096, raw_max_len))
+    logger.info(f"model_max_length = {max_len}")
+
+    # 모델 로드
+    if torch.cuda.is_available():
+        logger.info("GPU: bfloat16 + device_map=auto")
+        model_local = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
+            device_map="auto",
+        )
+    else:
+        logger.info("CPU: float32")
+        model_local = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            torch_dtype=torch.float32,
+            low_cpu_mem_usage=True,
+            attn_implementation="eager"
+        ).float()
+
+        # CPU 동적 양자화 (옵션)
+        if ENABLE_DYNAMIC_INT8:
+            logger.info("CPU 동적 양자화(int8) 준비...")
+            try:
+                # 엔진 지정(x86: fbgemm, ARM: qnnpack)
+                try:
+                    torch.backends.quantized.engine = "fbgemm"
+                    logger.info(f"quantized.engine = {torch.backends.quantized.engine}")
+                except Exception as e:
+                    logger.warning(f"quantized.engine 설정 무시: {e}")
+
+                # 메모리 여유 확인 (psutil 있으면)
+                avail = _available_memory_bytes()
+                if avail is not None:
+                    est_bytes = _estimate_model_bytes(model_local)
+                    # 대략 1.2~1.5배 여유 권장(레이어 교체 중 일시 오버헤드)
+                    if avail < int(est_bytes * 1.2):
+                        logger.warning(
+                            f"가용 메모리 부족으로 양자화 스킵 (avail={avail:,}B, est_model={est_bytes:,}B)"
+                        )
+                    else:
+                        tq0 = time.time()
+                        if SAFE_QUANT:
+                            logger.info("SAFE_QUANT=1 → 레이어-단위(in-place) 양자화 시작")
+                            _safe_dynamic_quantize_linear_inplace(model_local)
+                        else:
+                            logger.info("SAFE_QUANT=0 → 모델 단위 양자화 시작")
+                            model_local = torch.quantization.quantize_dynamic(
+                                model_local, {nn.Linear}, dtype=torch.qint8
+                            )
+                        gc.collect()
+                        tq1 = time.time()
+                        q_count = _count_quant_linear(model_local)
+                        logger.info(
+                            f"동적 양자화 적용 완료: q_linear={q_count}, 소요={tq1 - tq0:.2f}s"
+                        )
+                        if q_count == 0:
+                            logger.warning("양자화된 Linear 레이어가 0개입니다. 모델 구조상 미적용일 수 있습니다.")
+                else:
+                    # psutil 없음: 바로 시도
+                    tqs = time.time()
+                    if SAFE_QUANT:
+                        logger.info("SAFE_QUANT=1(psutil 미사용) → 레이어-단위 양자화 시작")
+                        _safe_dynamic_quantize_linear_inplace(model_local)
+                    else:
+                        logger.info("SAFE_QUANT=0(psutil 미사용) → 모델 단위 양자화 시작")
+                        model_local = torch.quantization.quantize_dynamic(
+                            model_local, {nn.Linear}, dtype=torch.qint8
+                        )
+                    gc.collect()
+                    tqe = time.time()
+                    q_count = _count_quant_linear(model_local)
+                    logger.info(
+                        f"동적 양자화 적용 완료: q_linear={q_count}, 소요={tqe - tqs:.2f}s"
+                    )
+                    if q_count == 0:
+                        logger.warning("양자화된 Linear 레이어가 0개입니다. 모델 구조상 미적용일 수 있습니다.")
+
+            except Exception as e:
+                logger.warning(f"동적 양자화 실패, float32로 계속 진행: {e}")
+
+    model_local.eval()
+
+    # 전역 반영
+    globals()["tokenizer"] = tokenizer_local
+    globals()["model"] = model_local
+    globals()["model_max_length"] = max_len
+    globals()["model_loaded"] = True
+    logger.info("모델 로딩 완료.")
+
+# -----------------------
+# 생성 유틸
+# -----------------------
+def _gen_kwargs(max_tokens: int, temperature: float):
+    return dict(
+        max_new_tokens=max_tokens,
+        temperature=temperature,
+        do_sample=True,
+        top_p=0.95,
+        top_k=50,
+        repetition_penalty=1.1,
+        no_repeat_ngram_size=3,
+        pad_token_id=tokenizer.pad_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+        use_cache=True,
+    )
+
+def generate_response(messages: List[Dict[str, str]], max_tokens: int = 512, temperature: float = 0.7) -> Dict[str, Any]:
     if not model_loaded or model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="모델이 로드되지 않았습니다.")
-    
-    try:
-        # CPU 환경에서 float16 관련 문제 방지
-        if not torch.cuda.is_available():
-            # CPU에서 모델을 float32로 강제 변환
-            model.float()
-        
-        # EXAONE 공식 형식 사용: tokenizer.apply_chat_template()
-        # 시스템 메시지가 없으면 한국어 전용 지시 추가
-        has_system_message = any(msg.role == "system" for msg in messages)
-        if not has_system_message:
-            # 시스템 메시지를 맨 앞에 추가
-            messages.insert(0, {
-                "role": "system", 
-                "content": "당신은 한국어로만 답변하는 AI 어시스턴트입니다. 모든 질문에 한국어로만 답변하고, 영어나 다른 언어는 사용하지 마세요. 자연스럽고 정확한 한국어로 답변해주세요."
-            })
-        
-        # EXAONE 공식 chat template 사용
-        input_ids = tokenizer.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_tensors="pt"
-        )
-        
-        # 토큰 제한 설정 (이미 input_ids로 처리됨)
-        # 1단계: 모델의 max_position_embeddings 확인
-        if hasattr(model.config, 'max_position_embeddings'):
-            model_max_pos = model.config.max_position_embeddings
-        else:
-            model_max_pos = 65536  # 기본값 64K
-        
-        # 2단계: 서비스 상한 설정 (8,192 토큰)
-        service_limit = 8192
-        
-        # 3단계: 권장 범위 설정 (2,048~4,096 토큰)
-        recommended_min = 2048
-        recommended_max = 4096
-        
-        # 4단계: 실제 사용할 최대 길이 계산
-        effective_max_length = min(
-            min(model_max_length, model_max_pos, service_limit),
-            recommended_max
-        )
-        
-        # 5단계: 최소 길이 보장
-        effective_max_length = max(effective_max_length, recommended_min)
-        
-        logger.info(f"토큰 제한 설정: 모델={model_max_length}, 모델최대={model_max_pos}, 서비스상한={service_limit}, 최종={effective_max_length}")
-        
-        # input_ids는 이미 위에서 생성됨
-        inputs = {"input_ids": input_ids}
-        
-        # 추론
-        with torch.no_grad():
-            # 입력 길이 + 요청된 최대 토큰 수를 초과하지 않도록 제한
-            max_generate_length = min(
-                input_ids.shape[1] + max_tokens,
-                effective_max_length
-            )
-            
-            # 토큰 길이 검증 및 로깅
-            input_tokens = input_ids.shape[1]
-            max_output_tokens = max_generate_length - input_tokens
-            
-            logger.info(f"토큰 생성 설정: 입력={input_tokens}, 최대출력={max_output_tokens}, 총최대={max_generate_length}")
-            
-            # 입력이 너무 길면 경고
-            if input_tokens > effective_max_length * 0.8:
-                logger.warning(f"입력 토큰이 너무 깁니다: {input_tokens}/{effective_max_length}")
-            
-            # EXAONE 공식 권장 파라미터 사용
-            outputs = model.generate(
-                input_ids.to(model.device),
-                max_new_tokens=max_tokens,  # EXAONE 공식 형식
-                temperature=temperature,
-                do_sample=True,
-                pad_token_id=tokenizer.pad_token_id,
-                eos_token_id=tokenizer.eos_token_id,
-                repetition_penalty=1.1,
-                num_return_sequences=1,
-                # EXAONE 공식 권장 파라미터
-                top_p=0.95,   # 공식 권장값
-                top_k=50,
-                no_repeat_ngram_size=3,
-                min_length=input_ids.shape[1] + 20,
-                early_stopping=False
-            )
-        
-        # 응답 디코딩 (EXAONE 공식 형식)
-        response = tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
-        
-        # 응답 정리 및 검증
-        response = response.strip()
-    
-        # 응답이 비어있거나 너무 짧으면 기본 응답 생성
-        if not response or len(response) < 5:
-            logger.warning("모델 응답이 비어있거나 너무 짧습니다. 기본 응답을 생성합니다.")
-            response = "안녕하세요! 무엇을 도와드릴까요?"
-        
-        # 응답 길이 로깅
-        logger.info(f"생성된 응답 길이: {len(response)} 자")
-        logger.info(f"응답 내용 미리보기: {response[:100]}...")
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"응답 생성 실패: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"응답 생성 중 오류가 발생했습니다: {str(e)}")
 
-@app.on_event("startup")
-async def startup_event():
-    """서비스 시작 시 모델을 로드합니다."""
-    # 메인 스레드에서 모델 로딩 시작 (백그라운드 스레드 대신)
+    input_ids = _build_input_ids(messages, include_system=True)
+    input_len = int(input_ids.shape[1])
+
+    t0 = time.time()
+    with torch.inference_mode():
+        outputs = model.generate(
+            input_ids.to(model.device),
+            **_gen_kwargs(max_tokens, temperature)
+        )
+    t1 = time.time()
+
+    new_tokens = int(outputs.shape[1] - input_len)
+    text = tokenizer.decode(outputs[0, input_len:], skip_special_tokens=True).strip()
+
+    logger.info(f"[non-stream] 입력토큰={input_len}, 출력토큰={new_tokens}, 소요={t1 - t0:.2f}s")
+
+    # usage 계산(가벼운 방식)
+    completion_ids = tokenizer(text, add_special_tokens=False, return_tensors="pt")["input_ids"]
+    completion_tokens = int(completion_ids.shape[1])
+    prompt_tokens = input_len
+    total_tokens = prompt_tokens + completion_tokens
+
+    return {
+        "text": text or "안녕하세요! 무엇을 도와드릴까요?",
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens
+        }
+    }
+
+def sse_stream_response(request: ChatCompletionRequest):
+    created = int(time.time())
+    stream_id = f"chatcmpl-{created}"
+
+    messages = [m.model_dump() for m in request.messages]
+    
+    # 시스템 메시지가 포함된 전체 입력 생성
+    msgs_with_system = [dict(role=m["role"], content=m["content"]) for m in messages]
+    msgs_with_system = _ensure_system_message(msgs_with_system)
+    
+    # 전체 입력 (시스템 메시지 포함)
+    input_ids_full = tokenizer.apply_chat_template(
+        msgs_with_system,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    )
+    
+    # 사용자 입력만 (시스템 메시지 제외) - 프롬프트 길이 계산용
+    msgs_user_only = [dict(role=m["role"], content=m["content"]) for m in messages]
+    input_ids_user = tokenizer.apply_chat_template(
+        msgs_user_only,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    )
+    
+    # 프롬프트 길이 계산 (시스템 메시지 + 사용자 입력)
+    prompt_length = int(input_ids_user.shape[1])
+    
+    logger.info(f"[stream] 전체입력토큰={input_ids_full.shape[1]}, 프롬프트토큰={prompt_length}")
+
+    streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
+
+    def _worker():
+        with torch.inference_mode():
+            model.generate(
+                input_ids=input_ids_full.to(model.device),
+                **_gen_kwargs(request.max_tokens, request.temperature),
+                streamer=streamer,
+            )
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    def _sse_event(obj: Dict[str, Any]) -> bytes:
+        return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n".encode("utf-8")
+
+    # 프롬프트 부분을 건너뛰고 실제 생성된 응답만 스트리밍
+    token_count = 0
+    for piece in streamer:
+        token_count += 1
+        
+        # 프롬프트 길이만큼 건너뛰기
+        if token_count <= prompt_length:
+            continue
+            
+        # 실제 AI 응답 부분만 스트리밍
+        chunk = {
+            "id": stream_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": request.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {"content": piece},
+                    "finish_reason": None
+                }
+            ]
+        }
+        yield _sse_event(chunk)
+
+    done = {
+        "id": stream_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": request.model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {},
+                "finish_reason": "stop"
+            }
+        ]
+    }
+    yield _sse_event(done)
+    yield b"data: [DONE]\n\n"
+
+# -----------------------
+# lifespan
+# -----------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         load_model()
-    except Exception as e:
-        logger.error(f"시작 시 모델 로딩 실패: {str(e)}")
-        # 모델 로딩 실패해도 서비스는 계속 실행
+        yield
+    finally:
+        pass
 
+# -----------------------
+# FastAPI 앱
+# -----------------------
+app = FastAPI(
+    title="Local LLM Service",
+    description="LG EXAONE 4.0 1.2B 로컬 AI 서비스",
+    version="1.3.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+)
+
+# -----------------------
+# 라우트
+# -----------------------
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
-    """서비스 상태를 확인합니다."""
     return HealthResponse(
         status="healthy",
         model_loaded=model_loaded,
@@ -311,63 +472,55 @@ async def health_check():
 
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completions(request: ChatCompletionRequest):
-    """OpenAI API와 호환되는 채팅 완성 엔드포인트"""
+    """
+    OpenAI Chat Completions 호환
+    - stream=false → JSON 단일
+    - stream=true  → SSE 스트리밍
+    """
     try:
-        # 응답 생성
-        response_text = generate_response(
-            request.messages,
-            request.max_tokens,
-            request.temperature
+        if request.stream:
+            return StreamingResponse(
+                sse_stream_response(request),
+                media_type="text/event-stream; charset=utf-8"
+            )
+
+        out = generate_response(
+            [m.model_dump() for m in request.messages],
+            max_tokens=request.max_tokens,
+            temperature=request.temperature
         )
-        
-        # OpenAI API 형식에 맞춰 응답 구성
-        import time
-        response = ChatCompletionResponse(
-            id=f"chatcmpl-{int(time.time())}",
-            created=int(time.time()),
+
+        created = int(time.time())
+        return ChatCompletionResponse(
+            id=f"chatcmpl-{created}",
+            created=created,
             model=request.model,
             choices=[{
                 "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": response_text
-                },
+                "message": {"role": "assistant", "content": out["text"]},
                 "finish_reason": "stop"
             }],
-            usage={
-                "prompt_tokens": len(tokenizer.encode(str(request.messages))),
-                "completion_tokens": len(tokenizer.encode(response_text)),
-                "total_tokens": len(tokenizer.encode(str(request.messages))) + len(tokenizer.encode(response_text))
-            }
+            usage=out["usage"]
         )
-        
-        return response
-        
     except Exception as e:
-        logger.error(f"채팅 완성 실패: {str(e)}")
+        logger.error(f"채팅 완성 실패: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
-    """루트 엔드포인트"""
     return {
         "message": "Local LLM Service",
-        "version": "1.0.0",
+        "version": "1.3.0",
         "model_loaded": model_loaded,
-        "endpoints": {
-            "health": "/health",
-            "chat": "/v1/chat/completions"
-        }
+        "endpoints": {"health": "/health", "chat": "/v1/chat/completions"}
     }
 
 if __name__ == "__main__":
-    # 개발 환경에서는 자동 리로드 활성화
-    reload = os.getenv("ENVIRONMENT", "production") == "development"
-    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=reload,
-        log_level="info"
-    ) 
+        reload=(ENVIRONMENT == "development"),
+        log_level="info",
+        workers=1,   # 반복 부팅 방지: 단일 워커 권장
+    )
