@@ -110,10 +110,12 @@ export default function CreateCustomPage() {
                   case "fields":
                     setGeneratedFields(parsed.fields);
                     setAiGenerated(parsed.aiGenerated);
+                    const message = parsed.message || "";
                     setStreamingContent(
                       (prev) =>
                         prev +
-                        `\n🎯 필드 및 값 생성 완료! ${parsed.fields.responseFields.length}개의 응답 필드가 생성되었습니다.\n`
+                        `\n🎯 필드 및 값 생성 완료! ${parsed.fields.responseFields.length}개의 응답 필드가 생성되었습니다.\n` +
+                        (message ? `\n💡 ${message}\n` : "")
                     );
                     break;
                   case "error":
