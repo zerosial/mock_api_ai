@@ -38,7 +38,7 @@ API 설명: ${description}
   ],
   "responseFields": [
     {
-      "name": "필드명", 
+      "name": "필드명",
       "type": "string|number|boolean|email|phone|name|address|date|array|object",
       "required": true/false,
       "description": "필드 설명",
@@ -48,17 +48,6 @@ API 설명: ${description}
 }
 
 요청 필드는 API가 받는 파라미터이고, 응답 필드는 API가 반환하는 데이터입니다.
-각 필드의 value에는 실제 JSON 응답에서 사용할 수 있는 적절한 예시 값을 넣어주세요.
-예를 들어:
-- name 필드: "홍길동", "김철수" 등의 실제 이름
-- email 필드: "user@example.com" 등의 실제 이메일
-- id 필드: "1", "123" 등의 숫자
-- date 필드: "2024-01-15" 등의 날짜
-- boolean 필드: true/false
-- address 필드: "서울시 강남구..." 등의 실제 주소
-- array 필드: ["item1", "item2"] 또는 [1, 2, 3] 등의 배열
-- object 필드: {"key": "value"} 등의 객체
-
 JSON 형식으로만 응답해주세요.`;
 
     try {
