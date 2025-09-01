@@ -49,5 +49,12 @@ ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD curl -f http://localhost:3000/api/llm/health || exit 1
 
-# 컨테이너 시작 시 Postgres 대기 후 마이그레이션 적용, Next standalone 서버 실행
-CMD ["bash", "-lc", "until </dev/tcp/postgres-container/5432; do echo 'Postgres 대기 중...'; sleep 1; done; echo 'Postgres 준비 완료'; npx prisma migrate reset --force && npx prisma migrate deploy && node .next/standalone/server.js"]
+# 컨테이너 시작: DB 대기 → 마이그레이션 적용 → 서버 시작
+CMD ["bash", "-lc", "\
+until </dev/tcp/postgres-container/5432; do echo 'Postgres 대기 중...'; sleep 1; done; \
+echo 'Postgres 준비 완료'; \
+echo '마이그레이션 적용...'; \
+npx prisma migrate deploy; \
+echo '서버 시작...'; \
+node .next/standalone/server.js \
+"]
