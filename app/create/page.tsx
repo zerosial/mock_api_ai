@@ -51,8 +51,11 @@ export default function CreatePage() {
     setShowStreamingModal(true);
 
     try {
+      // 시작 메시지 표시
+      setStreamingContent("🚀 AI 필드 생성 시작...\n");
+
       const response = await fetch(
-        withBasePath("/api/generate-fields-stream"),
+        withBasePath("/api/generate-fields"),
         {
           method: "POST",
           headers: {
@@ -71,65 +74,22 @@ export default function CreatePage() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("스트림을 읽을 수 없습니다.");
-      }
+      const result = await response.json();
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = new TextDecoder().decode(value);
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-              try {
-                const parsed = JSON.parse(data);
-
-                switch (parsed.type) {
-                  case "start":
-                    setStreamingContent(
-                      (prev) => prev + `🚀 ${parsed.message}\n`
-                    );
-                    break;
-                  case "progress":
-                    setStreamingContent((prev) => prev + parsed.content);
-                    break;
-                  case "complete":
-                    setStreamingContent(
-                      (prev) => prev + `\n✅ ${parsed.message}\n`
-                    );
-                    break;
-                  case "fields":
-                    setGeneratedFields(parsed.fields);
-                    setAiGenerated(parsed.aiGenerated);
-                    const message = parsed.message || "";
-                    setStreamingContent(
-                      (prev) =>
-                        prev +
-                        `\n🎯 필드 생성 완료! ${parsed.fields.responseFields.length}개의 응답 필드가 생성되었습니다.\n` +
-                        (message ? `\n💡 ${message}\n` : "")
-                    );
-                    break;
-                  case "error":
-                    setError(parsed.message);
-                    setStreamingContent(
-                      (prev) => prev + `\n❌ ${parsed.message}\n`
-                    );
-                    break;
-                }
-              } catch (e) {
-                // JSON 파싱 실패 시 무시
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
+      if (result.success) {
+        setGeneratedFields(result.fields);
+        setAiGenerated(result.aiGenerated);
+        
+        const message = result.message || "";
+        setStreamingContent(
+          (prev) =>
+            prev +
+            `✅ AI 필드 생성 완료!\n` +
+            `🎯 ${result.fields.responseFields.length}개의 응답 필드가 생성되었습니다.\n` +
+            (message ? `\n💡 ${message}\n` : "")
+        );
+      } else {
+        throw new Error(result.error || "필드 생성에 실패했습니다.");
       }
     } catch (error) {
       console.error("필드 생성 오류:", error);
@@ -137,7 +97,7 @@ export default function CreatePage() {
       setStreamingContent(
         (prev) =>
           prev +
-          `\n❌ 오류 발생: ${
+          `❌ 오류 발생: ${
             error instanceof Error ? error.message : "알 수 없는 오류"
           }\n`
       );

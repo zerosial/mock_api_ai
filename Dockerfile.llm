@@ -21,21 +21,22 @@ RUN pip install --no-cache-dir -r requirements-llm.txt
 ENV TZ=Asia/Seoul
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 모델 저장 디렉토리 생성
-RUN mkdir -p /app/models
+# 모델 저장 디렉토리 및 로그 디렉토리 생성
+RUN mkdir -p /app/models /tmp
 
 # 애플리케이션 코드 복사
 COPY llm-service/ .
 
-# 모델 다운로드 스크립트 실행 권한 부여
-RUN chmod +x download_model.py
-
 # 포트 설정
 EXPOSE 8000
 
-# 헬스체크
+# 헬스체크 스크립트에 실행 권한 부여
+RUN chmod +x /app/health_check.sh
+
+# 헬스체크 (첫 진입 후 1시간 간격)
+# 30초마다 스크립트 실행하되, 스크립트 내부에서 1시간 간격 관리
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD /app/health_check.sh
 
 # 서비스 시작
-CMD ["python", "main.py"] 
+CMD ["python", "main.py"]

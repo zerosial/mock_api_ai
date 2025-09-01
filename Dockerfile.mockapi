@@ -4,16 +4,22 @@ FROM node:18
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# 필수 패키지 설치 (git 포함)
-RUN apt-get update && apt-get install -y git
-
-# GitHub에서 프로젝트 코드 체크아웃
-RUN git clone https://github.com/zerosial/mock_api_ai.git /app
+# 시스템 패키지 업데이트
+RUN apt-get update && apt-get install -y \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
 
 # 한국 시간대로 설정
-RUN ln -sf /usr/share/zoneinfo/Asia/Seoul /etc/localtime
+ENV TZ=Asia/Seoul
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# npm 패키지 설치
+# 애플리케이션 소스 코드 복사
+COPY . .
+
+# npm 패키지 설치 (빌드에 필요한 devDependencies 포함)
 RUN npm install
 
 # Prisma 클라이언트 생성
@@ -24,6 +30,7 @@ ENV NODE_ENV=production
 ENV NEXT_PUBLIC_BASE_PATH=/mockapi
 ENV OPENAI_API_KEY=dummy-key-for-build
 ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
+ENV LLM_SERVICE_URL=http://local-llm-container:8000
 
 # Next.js 빌드
 RUN npm run build
@@ -37,6 +44,10 @@ RUN cp -r public .next/standalone/public
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+
+# 헬스체크 추가
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:3000/api/llm/health || exit 1
 
 # 컨테이너 시작 시 Postgres 대기 후 마이그레이션 적용, Next standalone 서버 실행
 CMD ["bash", "-lc", "until </dev/tcp/postgres-container/5432; do echo 'Postgres 대기 중...'; sleep 1; done; echo 'Postgres 준비 완료'; npx prisma migrate deploy && node .next/standalone/server.js"]
