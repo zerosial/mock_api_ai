@@ -86,52 +86,17 @@ AI를 활용하여 Mock API를 생성하고 관리하는 웹 애플리케이션�
 
 ## 설치 및 실행
 
-### Docker를 사용한 배포 (권장)
-
-#### 1. 환경 변수 설정
-
-`env.example` 파일을 `.env`로 복사하고 필요한 값들을 설정하세요:
+#### 1. Docker 서비스 시작 (LLM Local 사용 및 postgresql Local 사용시 필수)
 
 ```bash
-cp env.example .env
-```
+# 모든 서비스 빌드
+docker-compose build
 
-#### 2. Docker 이미지 빌드
-
-**Windows:**
-
-```bash
-build-docker.bat
-```
-
-**Linux/Mac:**
-
-```bash
-chmod +x build-docker.sh
-./build-docker.sh
-```
-
-또는 수동으로 빌드:
-
-```bash
-# Mock API 이미지 빌드
-docker build -f Dockerfile.mockapi -t mock-api-ai:latest .
-
-# LLM 서비스 이미지 빌드
-docker build -f Dockerfile.llm -t mock-api-ai-llm:latest .
-```
-
-#### 3. Docker Compose로 서비스 시작
-
-```bash
 # 모든 서비스 시작
 docker-compose up -d
-
-# 또는 배포 스크립트 사용
-./deploy.sh
 ```
 
-#### 3. 서비스 상태 확인
+#### 2. 서비스 상태 확인
 
 ```bash
 # 컨테이너 상태 확인
@@ -142,7 +107,7 @@ docker-compose logs -f local-llm-container
 docker-compose logs -f mock-api-container
 ```
 
-### 로컬 개발 환경
+### 로컬 개발 환경 (LLM 사용을 위해 도커를 배포해야 내부 LLM 접근가능)
 
 #### 1. 의존성 설치
 
@@ -152,14 +117,10 @@ npm install
 
 #### 2. 환경 변수 설정
 
-`.env` 파일을 생성하고 다음 변수들을 설정하세요:
+`env.example` 파일을 `.env`로 복사하고 필요한 값들을 설정하세요:
 
-```env
-
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mockapi"
-LLM_SERVICE_URL="http://localhost:8000"
-OPENAI_API_KEY="your_openai_api_key"  # 폴백용
-
+```bash
+cp env.example .env
 ```
 
 #### 3. 데이터베이스 마이그레이션
@@ -172,25 +133,6 @@ npx prisma migrate dev
 
 ```bash
 npm run dev
-```
-
-## 프로젝트 구조
-
-```
-app/
-├── api/                    # API 라우트
-│   ├── generate/          # Mock API 생성
-│   ├── proxy/             # 프록시 서버 관련 API
-│   └── templates/         # 템플릿 관리
-├── create/                # Mock API 생성 페이지
-├── create-custom/         # 커스텀 Mock API 생성
-├── create-json/           # JSON으로 API 생성
-├── proxy/                 # 프록시 서버 관리
-│   ├── [proxyName]/       # 특정 프록시 서버
-│   │   ├── create/        # Mock API 생성
-│   │   └── apis/          # Mock API 목록
-│   └── page.tsx           # 프록시 서버 목록
-└── page.tsx               # 메인 페이지
 ```
 
 ## 라이센스

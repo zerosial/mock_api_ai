@@ -7,6 +7,106 @@ interface Field {
   description: string;
 }
 
+// JSON 완성도 검증 및 정리 함수
+function validateAndCleanJSON(jsonString: string): {
+  isValid: boolean;
+  cleaned: string;
+  error?: string;
+} {
+  try {
+    // 기본적인 JSON 파싱 시도
+    JSON.parse(jsonString);
+    return { isValid: true, cleaned: jsonString };
+  } catch (parseError) {
+    console.log("JSON 파싱 실패, 정리 시도 중...");
+
+    // 중괄호, 대괄호, 따옴표 개수 체크
+    const openBraces = (jsonString.match(/\{/g) || []).length;
+    const closeBraces = (jsonString.match(/\}/g) || []).length;
+    const openBrackets = (jsonString.match(/\[/g) || []).length;
+    const closeBrackets = (jsonString.match(/\]/g) || []).length;
+    const quotes = (jsonString.match(/"/g) || []).length;
+
+    console.log("JSON 구조 분석:", {
+      openBraces,
+      closeBraces,
+      openBrackets,
+      closeBrackets,
+      quotes,
+      length: jsonString.length,
+    });
+
+    // JSON 정리 시도
+    let cleaned = jsonString;
+
+    // 1. 불필요한 공백과 개행 제거
+    cleaned = cleaned
+      .replace(/\r\n/g, "")
+      .replace(/\n/g, "")
+      .replace(/\r/g, "");
+
+    // 2. 중괄호 균형 맞추기
+    if (openBraces > closeBraces) {
+      cleaned += "}".repeat(openBraces - closeBraces);
+    } else if (closeBraces > openBraces) {
+      cleaned = "{".repeat(closeBraces - openBraces) + cleaned;
+    }
+
+    // 3. 대괄호 균형 맞추기
+    if (openBrackets > closeBrackets) {
+      cleaned += "]".repeat(openBrackets - closeBrackets);
+    } else if (closeBrackets > openBrackets) {
+      cleaned = "[".repeat(closeBrackets - openBrackets) + cleaned;
+    }
+
+    // 4. 따옴표가 홀수인 경우 짝수로 맞추기
+    if (quotes % 2 !== 0) {
+      cleaned += '"';
+    }
+
+    // 5. JSON 시작과 끝 확인
+    if (!cleaned.trim().startsWith("{")) {
+      cleaned = "{" + cleaned;
+    }
+    if (!cleaned.trim().endsWith("}")) {
+      cleaned = cleaned + "}";
+    }
+
+    // 6. 정리된 JSON 파싱 시도
+    try {
+      JSON.parse(cleaned);
+      console.log("JSON 정리 성공");
+      return { isValid: true, cleaned };
+    } catch (finalError) {
+      console.log("JSON 정리 후에도 파싱 실패:", finalError);
+      return {
+        isValid: false,
+        cleaned,
+        error: `JSON 정리 실패: ${
+          finalError instanceof Error ? finalError.message : "Unknown error"
+        }`,
+      };
+    }
+  }
+}
+
+// 스트림 데이터에서 JSON 추출 함수
+function extractJSONFromStream(content: string): string | null {
+  // JSON 객체 패턴 찾기
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    return jsonMatch[0];
+  }
+
+  // 배열 패턴 찾기
+  const arrayMatch = content.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    return arrayMatch[0];
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -111,6 +211,7 @@ JSON 형식으로만 응답해주세요.`,
 
             let fullResponse = "";
             let isFirstChunk = true;
+            let jsonBuffer = "";
 
             try {
               while (true) {
@@ -132,6 +233,7 @@ JSON 형식으로만 응답해주세요.`,
                       if (parsed.choices?.[0]?.delta?.content) {
                         const content = parsed.choices[0].delta.content;
                         fullResponse += content;
+                        jsonBuffer += content;
 
                         // 첫 번째 청크가 아닌 경우에만 진행 상황 전송
                         if (!isFirstChunk) {
@@ -187,20 +289,27 @@ JSON 형식으로만 응답해주세요.`,
 
             // 생성된 필드 파싱 및 전송
             try {
-              // JSON이 완전한지 확인 (중괄호 개수 체크)
-              const openBraces = (fullResponse.match(/\{/g) || []).length;
-              const closeBraces = (fullResponse.match(/\}/g) || []).length;
+              console.log("원본 응답 길이:", fullResponse.length);
+              console.log(
+                "원본 응답 미리보기:",
+                fullResponse.substring(0, 200) + "..."
+              );
 
-              // JSON이 완전하지 않으면 기본 필드 사용
-              if (openBraces !== closeBraces) {
-                console.log("JSON이 완전하지 않음, 기본 필드 사용:", {
-                  openBraces,
-                  closeBraces,
-                });
-                throw new Error("JSON이 완전하지 않습니다");
+              // JSON 추출 시도
+              let jsonContent = extractJSONFromStream(fullResponse);
+              if (!jsonContent) {
+                jsonContent = fullResponse;
               }
 
-              const generatedFields = JSON.parse(fullResponse);
+              // JSON 완성도 검증 및 정리
+              const validation = validateAndCleanJSON(jsonContent);
+
+              if (!validation.isValid) {
+                console.log("JSON 검증 실패:", validation.error);
+                throw new Error(validation.error || "JSON이 완전하지 않습니다");
+              }
+
+              const generatedFields = JSON.parse(validation.cleaned);
 
               // 필드 검증 및 정리
               const validatedFields = {
