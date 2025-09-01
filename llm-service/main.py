@@ -383,9 +383,15 @@ def sse_stream_response(request: ChatCompletionRequest):
     def _sse_event(obj: Dict[str, Any]) -> bytes:
         return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n".encode("utf-8")
 
-    # TextIteratorStreamer는 이미 생성된 토큰만 스트리밍하므로
-    # 프롬프트 건너뛰기 로직이 불필요함 - 모든 piece를 바로 스트리밍
+    # 프롬프트 부분을 건너뛰고 실제 생성된 응답만 스트리밍
+    token_count = 0
     for piece in streamer:
+        token_count += 1
+        
+        # 프롬프트 길이만큼 건너뛰기 (시스템 메시지 + 사용자 입력)
+        if token_count <= prompt_length:
+            continue
+            
         # 실제 AI 응답 부분만 스트리밍
         chunk = {
             "id": stream_id,
