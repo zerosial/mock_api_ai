@@ -21,6 +21,7 @@ import torch.nn as nn
 import torch.nn.quantized.dynamic as nnqd
 from transformers import (
     AutoTokenizer,
+    AutoConfig,
     AutoModelForCausalLM,
     TextIteratorStreamer,
 )
@@ -205,13 +206,21 @@ def load_model():
     max_len = max(2048, min(4096, raw_max_len))
     logger.info(f"model_max_length = {max_len}")
 
-    # 모델 로드
+    # 1) Config를 먼저 로드(커스텀 아키텍처 exaone4 인식용)
+    config_local = AutoConfig.from_pretrained(
+        model_path,
+        trust_remote_code=True,
+    )
+
+   # 2) 모델 로드
     if torch.cuda.is_available():
         logger.info("GPU: bfloat16 + device_map=auto")
         model_local = AutoModelForCausalLM.from_pretrained(
             model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
+            trust_remote_code=True,
+            config=config_local,
             device_map="auto",
         )
     else:
@@ -220,6 +229,8 @@ def load_model():
             model_path,
             torch_dtype=torch.float32,
             low_cpu_mem_usage=True,
+            trust_remote_code=True,
+            config=config_local,
             attn_implementation="eager"
         ).float()
 
@@ -368,7 +379,7 @@ def sse_stream_response(request: ChatCompletionRequest):
     
     logger.info(f"[stream] 전체입력토큰={prompt_length}")
 
-    streamer = TextIteratorStreamer(tokenizer, skip_special_tokens=True)
+    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     def _worker():
         with torch.inference_mode():
@@ -383,16 +394,8 @@ def sse_stream_response(request: ChatCompletionRequest):
     def _sse_event(obj: Dict[str, Any]) -> bytes:
         return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n".encode("utf-8")
 
-    # 프롬프트 부분을 건너뛰고 실제 생성된 응답만 스트리밍
-    token_count = 0
+    # 실제 AI 응답 부분만 스트리밍 (프롬프트는 streamer가 건너뜀)
     for piece in streamer:
-        token_count += 1
-        
-        # 프롬프트 길이만큼 건너뛰기 (시스템 메시지 + 사용자 입력)
-        if token_count <= prompt_length:
-            continue
-            
-        # 실제 AI 응답 부분만 스트리밍
         chunk = {
             "id": stream_id,
             "object": "chat.completion.chunk",

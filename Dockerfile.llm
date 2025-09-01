@@ -5,13 +5,27 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 시스템 패키지 업데이트 및 필수 패키지 설치 (저사양 환경 최적화)
+# - libgomp1: PyTorch/OpenMP 의존성(없으면 일부 환경에서 실행 실패 가능)
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    libgomp1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && rm -rf /tmp/* \
     && rm -rf /var/tmp/*
+
+# ===== 핵심 ENV =====
+# EXAONE 4.0 같은 커스텀 아키텍처(exaone4) 로딩에 필수
+ENV TRANSFORMERS_TRUST_REMOTE_CODE=1
+# 대형 모델 다운로드 최적화(선택: 있으면 빠르고 안정적)
+# ENV HF_HUB_ENABLE_HF_TRANSFER=1
+ENV HF_HUB_ENABLE_HF_TRANSFER=0
+
+# 출력 버퍼링 방지(로그 바로 표시)
+ENV PYTHONUNBUFFERED=1
+# 로케일/UTF-8 한글 로그 안전
+ENV PYTHONIOENCODING=UTF-8
 
 # Python 의존성 설치
 COPY requirements-llm.txt .
