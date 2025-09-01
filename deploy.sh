@@ -1,99 +1,39 @@
 #!/bin/bash
 
-# 색상 정의
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+# Mock API AI 배포 스크립트
+echo "🚀 Mock API AI 배포를 시작합니다..."
 
-echo -e "${GREEN}🚀 Starting deployment...${NC}"
+# 기존 컨테이너와 볼륨 정리 (선택사항)
+read -p "기존 컨테이너와 볼륨을 정리하시겠습니까? (y/N): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "🧹 기존 컨테이너와 볼륨을 정리합니다..."
+    docker-compose down -v
+    docker system prune -f
+fi
 
-# 환경 변수 검증
+# 환경변수 파일 확인
 if [ ! -f .env ]; then
-    echo -e "${RED}❌ .env file not found!${NC}"
-    echo "Please create .env file from env.sample"
+    echo "⚠️  .env 파일이 없습니다. env.example을 복사합니다..."
+    cp env.example .env
+    echo "📝 .env 파일을 확인하고 필요한 환경변수를 설정해주세요."
+    echo "   특히 OPENAI_API_KEY를 설정해야 합니다."
     exit 1
 fi
 
-# Docker 확인
-if ! command -v docker &> /dev/null; then
-    echo -e "${RED}❌ Docker is not installed!${NC}"
-    exit 1
-fi
-
-if ! command -v docker-compose &> /dev/null; then
-    echo -e "${RED}❌ Docker Compose is not installed!${NC}"
-    exit 1
-fi
-
-# 1. 최신 코드 가져오기
-echo -e "${YELLOW}📥 Pulling latest code...${NC}"
-git pull origin main
-
-# 2. 기존 컨테이너 중지
-echo -e "${YELLOW}🛑 Stopping existing containers...${NC}"
-docker-compose down
-
-# 3. 새 이미지 빌드
-echo -e "${YELLOW}🔨 Building new image...${NC}"
+# Docker 이미지 빌드
+echo "🔨 Docker 이미지를 빌드합니다..."
 docker-compose build --no-cache
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Build failed!${NC}"
-    exit 1
-fi
-
-# 4. 컨테이너 시작
-echo -e "${YELLOW}🚀 Starting containers...${NC}"
+# 컨테이너 시작
+echo "🚀 컨테이너를 시작합니다..."
 docker-compose up -d
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Container startup failed!${NC}"
-    exit 1
-fi
+# 상태 확인
+echo "📊 컨테이너 상태를 확인합니다..."
+docker-compose ps
 
-# 5. 컨테이너 상태 확인
-echo -e "${YELLOW}🔍 Checking container status...${NC}"
-sleep 10
-
-if ! docker-compose ps | grep -q "Up"; then
-    echo -e "${RED}❌ Containers are not running!${NC}"
-    docker-compose logs
-    exit 1
-fi
-
-# 6. 데이터베이스 마이그레이션
-echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
-docker-compose exec mock-api-container npx prisma db push
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Database migration failed!${NC}"
-    exit 1
-fi
-
-# 7. 로컬 LLM 서비스 상태 확인
-echo -e "${YELLOW}🤖 Checking Local LLM service status...${NC}"
-sleep 10
-
-if curl -f http://localhost:8000/health > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Local LLM service is healthy!${NC}"
-else
-    echo -e "${YELLOW}⚠️ Local LLM service health check failed, but deployment might still be successful${NC}"
-fi
-
-# 8. 헬스체크
-echo -e "${YELLOW}🏥 Performing health check...${NC}"
-sleep 5
-
-if curl -f http://localhost:3000 > /dev/null 2>&1; then
-    echo -e "${GREEN}✅ Health check passed!${NC}"
-else
-    echo -e "${YELLOW}⚠️ Health check failed, but deployment might still be successful${NC}"
-fi
-
-# 9. 완료 메시지
-echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
-echo -e "${GREEN}🌐 Application URL: http://localhost:3000${NC}"
-echo -e "${GREEN}🤖 Local LLM Service URL: http://localhost:8000${NC}"
-echo -e "${GREEN}📊 Database URL: localhost:5432${NC}"
-echo -e "${YELLOW}📋 To view logs: docker-compose logs -f${NC}" 
+echo "✅ 배포가 완료되었습니다!"
+echo "🌐 애플리케이션: http://localhost:3000"
+echo "📊 로그 확인: docker-compose logs -f"
+echo "🛑 중지: docker-compose down" 
