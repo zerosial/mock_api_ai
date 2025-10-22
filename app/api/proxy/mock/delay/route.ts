@@ -15,9 +15,9 @@ export async function PATCH(req: NextRequest) {
 
     // 지연 시간 유효성 검사
     const delayValue = parseInt(delayMs);
-    if (isNaN(delayValue) || delayValue < 0 || delayValue > 30000) {
+    if (isNaN(delayValue) || delayValue < 0 || delayValue > 300000) {
       return NextResponse.json(
-        { error: "지연 시간은 0-30000ms 사이의 값이어야 합니다." },
+        { error: "지연 시간은 0-300000ms 사이의 값이어야 합니다." },
         { status: 400 }
       );
     }
