@@ -357,8 +357,8 @@ export default function Home() {
       setUpdatingDelay(templateId);
       const delayMs = parseInt(delayValue);
 
-      if (isNaN(delayMs) || delayMs < 0 || delayMs > 30000) {
-        alert("지연 시간은 0-30000ms 사이여야 합니다.");
+      if (isNaN(delayMs) || delayMs < 0 || delayMs > 300000) {
+        alert("지연 시간은 0-300000ms 사이여야 합니다.");
         return;
       }
 
@@ -1389,14 +1389,14 @@ export default function Home() {
                 <input
                   type="number"
                   min="0"
-                  max="30000"
+                  max="300000"
                   value={delayValue}
                   onChange={(e) => setDelayValue(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  0-30000ms 사이의 값을 입력하세요
+                  0-300000ms 사이의 값을 입력하세요
                 </p>
               </div>
               <div className="flex justify-end space-x-3">

@@ -42,7 +42,7 @@ export class LocalLLMClient {
 
   constructor(
     baseUrl: string = "http://localhost:8000",
-    timeout: number = 30000
+    timeout: number = 300000
   ) {
     this.baseUrl = baseUrl;
     this.timeout = timeout;

@@ -11,9 +11,9 @@ export async function PATCH(
     const { delayMs } = await req.json();
 
     // 지연 시간 유효성 검사
-    if (typeof delayMs !== "number" || delayMs < 0 || delayMs > 30000) {
+    if (typeof delayMs !== "number" || delayMs < 0 || delayMs > 300000) {
       return NextResponse.json(
-        { error: "지연 시간은 0-30000ms 사이여야 합니다." },
+        { error: "지연 시간은 0-300000ms 사이여야 합니다." },
         { status: 400 }
       );
     }
