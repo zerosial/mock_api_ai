@@ -1,84 +1,45 @@
 @echo off
-setlocal enabledelayedexpansion
+chcp 65001 >nul
 
-echo 🚀 Starting deployment...
+echo 🚀 Mock API AI 배포를 시작합니다...
 
-REM 환경 변수 파일 확인
+REM 환경변수 파일 확인
 if not exist .env (
-    echo ❌ .env file not found!
-    echo Please create .env file from env.sample
+    echo ⚠️  .env 파일이 없습니다. env.example을 복사합니다...
+    copy env.example .env
+    echo 📝 .env 파일을 확인하고 필요한 환경변수를 설정해주세요.
+    echo    특히 OPENAI_API_KEY를 설정해야 합니다.
+    pause
     exit /b 1
 )
 
-REM Docker 확인
-docker --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Docker is not installed!
-    exit /b 1
-)
-
-docker-compose --version >nul 2>&1
-if errorlevel 1 (
-    echo ❌ Docker Compose is not installed!
-    exit /b 1
-)
-
-REM 1. 최신 코드 가져오기
-echo 📥 Pulling latest code...
-git pull origin main
-
-REM 2. 기존 컨테이너 중지
-echo 🛑 Stopping existing containers...
-docker-compose down
-
-REM 3. 새 이미지 빌드
-echo 🔨 Building new image...
+REM Docker 이미지 빌드
+echo 🔨 Docker 이미지를 빌드합니다...
 docker-compose build --no-cache
-if errorlevel 1 (
-    echo ❌ Build failed!
+
+if %errorlevel% neq 0 (
+    echo ❌ 빌드에 실패했습니다.
+    pause
     exit /b 1
 )
 
-REM 4. 컨테이너 시작
-echo 🚀 Starting containers...
+REM 컨테이너 시작
+echo 🚀 컨테이너를 시작합니다...
 docker-compose up -d
-if errorlevel 1 (
-    echo ❌ Container startup failed!
+
+if %errorlevel% neq 0 (
+    echo ❌ 컨테이너 시작에 실패했습니다.
+    pause
     exit /b 1
 )
 
-REM 5. 컨테이너 상태 확인
-echo 🔍 Checking container status...
-timeout /t 10 /nobreak >nul
+REM 상태 확인
+echo 📊 컨테이너 상태를 확인합니다...
+docker-compose ps
 
-docker-compose ps | findstr "Up" >nul
-if errorlevel 1 (
-    echo ❌ Containers are not running!
-    docker-compose logs
-    exit /b 1
-)
+echo ✅ 배포가 완료되었습니다!
+echo 🌐 애플리케이션: http://localhost:3000
+echo 📊 로그 확인: docker-compose logs -f
+echo 🛑 중지: docker-compose down
 
-REM 6. 데이터베이스 마이그레이션
-echo 🗄️ Running database migrations...
-docker-compose exec app npx prisma db push
-if errorlevel 1 (
-    echo ❌ Database migration failed!
-    exit /b 1
-)
-
-REM 7. 헬스체크
-echo 🏥 Performing health check...
-timeout /t 5 /nobreak >nul
-
-powershell -Command "try { Invoke-WebRequest -Uri http://localhost:3000 -UseBasicParsing | Out-Null; exit 0 } catch { exit 1 }"
-if errorlevel 1 (
-    echo ⚠️ Health check failed, but deployment might still be successful
-) else (
-    echo ✅ Health check passed!
-)
-
-REM 8. 완료 메시지
-echo ✅ Deployment completed successfully!
-echo 🌐 Application URL: http://localhost:3000
-echo 📊 Database URL: localhost:5432
-echo 📋 To view logs: docker-compose logs -f 
+pause 
