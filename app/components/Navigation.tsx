@@ -2,9 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession, signIn, signOut } from "next-auth/react";
+import { useState } from "react";
+import { getBasePath } from "@/lib/basePath";
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { data: session, status } = useSession();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const basePath = getBasePath();
 
   const navItems = [
     { href: "/", label: "홈", description: "Mock API 템플릿 관리" },
@@ -55,10 +61,74 @@ export default function Navigation() {
             })}
           </div>
 
+          {/* 로그인/회원가입 버튼 영역 */}
+          <div className="hidden md:flex items-center space-x-4">
+            {status === "loading" ? (
+              <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+            ) : session ? (
+              <div className="flex items-center space-x-4">
+                {session.user?.image && (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <span className="text-sm text-gray-700">
+                  {session.user?.name || session.user?.email}
+                </span>
+                <button
+                  onClick={() => signOut()}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  로그아웃
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() =>
+                  signIn("google", { callbackUrl: basePath ? `${basePath}/` : "/" })
+                }
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+              >
+                구글 로그인
+              </button>
+            )}
+          </div>
+
           {/* 모바일 메뉴 버튼 */}
-          <div className="md:hidden flex items-center">
+          <div className="md:hidden flex items-center space-x-2">
+            {status === "loading" ? (
+              <div className="w-6 h-6 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+            ) : session ? (
+              <div className="flex items-center space-x-2">
+                {session.user?.image && (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || "User"}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <button
+                  onClick={() => signOut()}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  로그아웃
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() =>
+                  signIn("google", { callbackUrl: basePath ? `${basePath}/` : "/" })
+                }
+                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                로그인
+              </button>
+            )}
             <button
               type="button"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
               className="text-gray-600 hover:text-gray-900 focus:outline-none focus:text-gray-900"
               aria-label="메뉴 열기"
             >
@@ -81,26 +151,29 @@ export default function Navigation() {
       </div>
 
       {/* 모바일 메뉴 (간단한 드롭다운) */}
-      <div className="md:hidden">
-        <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`block px-3 py-2 rounded-md text-base font-medium ${
-                  isActive
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+      {isMenuOpen && (
+        <div className="md:hidden">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`block px-3 py-2 rounded-md text-base font-medium ${
+                    isActive
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   );
 }
