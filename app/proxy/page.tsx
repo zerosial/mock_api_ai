@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { withBasePath } from "@/lib/basePath";
+import { useSession, signIn } from "next-auth/react";
 
 interface ProxyServer {
   id: number;
@@ -10,28 +11,68 @@ interface ProxyServer {
   targetUrl: string;
   description: string | null;
   isActive: boolean;
+  visibility: "PUBLIC" | "PRIVATE";
   createdAt: string;
   _count: {
     mockApis: number;
   };
 }
 
+interface ProxyInvite {
+  id: number;
+  email: string;
+  status: "PENDING" | "ACCEPTED" | "REVOKED";
+  createdAt: string;
+  proxyServer: {
+    id: number;
+    name: string;
+    targetUrl: string;
+    description: string | null;
+    visibility: "PUBLIC" | "PRIVATE";
+  };
+  invitedBy: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+  };
+}
+
 export default function ProxyPage() {
+  const { status } = useSession();
   const [proxyServers, setProxyServers] = useState<ProxyServer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<ProxyInvite[]>([]);
+  const [loadingInvites, setLoadingInvites] = useState(false);
+  const [inviteActionId, setInviteActionId] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
     targetUrl: "",
     description: "",
+    visibility: "PRIVATE" as "PUBLIC" | "PRIVATE",
   });
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
 
+  const visibilityLabel = {
+    PUBLIC: "공개",
+    PRIVATE: "비공개",
+  } as const;
+
   useEffect(() => {
-    fetchProxyServers();
-  }, []);
+    if (status === "authenticated") {
+      fetchProxyServers();
+      fetchPendingInvites();
+      return;
+    }
+
+    if (status === "unauthenticated") {
+      fetchProxyServers();
+      setPendingInvites([]);
+    }
+  }, [status]);
 
   const fetchProxyServers = async () => {
     try {
@@ -50,6 +91,83 @@ export default function ProxyPage() {
       setError("프록시 서버를 불러오는 중 오류가 발생했습니다.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPendingInvites = async () => {
+    try {
+      setLoadingInvites(true);
+      const response = await fetch(withBasePath("/api/proxy/invites"));
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      setPendingInvites(data);
+    } catch (error) {
+      console.error("초대 목록 조회 오류:", error);
+    } finally {
+      setLoadingInvites(false);
+    }
+  };
+
+  const acceptInvite = async (inviteId: number) => {
+    try {
+      setInviteActionId(inviteId);
+      const response = await fetch(withBasePath("/api/proxy/invites/accept"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inviteId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "초대 수락에 실패했습니다.");
+      }
+
+      setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+      await fetchProxyServers();
+    } catch (error) {
+      console.error("초대 수락 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "초대 수락 중 오류가 발생했습니다."
+      );
+    } finally {
+      setInviteActionId(null);
+    }
+  };
+
+  const declineInvite = async (inviteId: number) => {
+    try {
+      setInviteActionId(inviteId);
+      const response = await fetch(withBasePath("/api/proxy/invites"), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inviteId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "초대 거절에 실패했습니다.");
+      }
+
+      setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+    } catch (error) {
+      console.error("초대 거절 오류:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "초대 거절 중 오류가 발생했습니다."
+      );
+    } finally {
+      setInviteActionId(null);
     }
   };
 
@@ -77,7 +195,12 @@ export default function ProxyPage() {
       }
 
       // 폼 초기화 및 목록 새로고침
-      setCreateForm({ name: "", targetUrl: "", description: "" });
+      setCreateForm({
+        name: "",
+        targetUrl: "",
+        description: "",
+        visibility: "PRIVATE",
+      });
       setShowCreateForm(false);
       await fetchProxyServers();
 
@@ -175,6 +298,17 @@ export default function ProxyPage() {
     }
   };
 
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -198,11 +332,108 @@ export default function ProxyPage() {
           </div>
         </div>
 
+        {status === "unauthenticated" && (
+          <div className="mb-6 bg-white border border-blue-100 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                공개 프록시는 로그인 없이 조회/수정할 수 있습니다. 프록시
+                생성이나 초대 관리가 필요하면 로그인하세요.
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                signIn("google", {
+                  callbackUrl: window.location.pathname,
+                })
+              }
+              className="mt-3 sm:mt-0 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              구글 로그인
+            </button>
+          </div>
+        )}
+
+        {/* 초대된 프록시 */}
+        {status === "authenticated" &&
+          (loadingInvites || pendingInvites.length > 0) && (
+          <div className="mb-8 bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                받은 초대
+              </h3>
+              {loadingInvites && (
+                <span className="text-xs text-gray-500">불러오는 중...</span>
+              )}
+            </div>
+            {pendingInvites.length === 0 ? (
+              <p className="text-sm text-gray-500">받은 초대가 없습니다.</p>
+            ) : (
+              <ul className="space-y-3">
+                {pendingInvites.map((invite) => (
+                  <li
+                    key={invite.id}
+                    className="border border-gray-200 rounded-md p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {invite.proxyServer.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {invite.proxyServer.targetUrl}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          초대한 사람:{" "}
+                          {invite.invitedBy.name || invite.invitedBy.email}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => acceptInvite(invite.id)}
+                          disabled={inviteActionId === invite.id}
+                          className={`px-3 py-1 text-xs font-medium rounded ${
+                            inviteActionId === invite.id
+                              ? "bg-green-300 text-white cursor-not-allowed"
+                              : "bg-green-600 text-white hover:bg-green-700"
+                          }`}
+                        >
+                          수락
+                        </button>
+                        <button
+                          onClick={() => declineInvite(invite.id)}
+                          disabled={inviteActionId === invite.id}
+                          className={`px-3 py-1 text-xs font-medium rounded ${
+                            inviteActionId === invite.id
+                              ? "bg-gray-300 text-white cursor-not-allowed"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          }`}
+                        >
+                          거절
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* 액션 버튼 */}
         <div className="mb-8">
           <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            onClick={() => {
+              if (status !== "authenticated") {
+                signIn("google", { callbackUrl: window.location.pathname });
+                return;
+              }
+              setShowCreateForm(!showCreateForm);
+            }}
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+              status === "authenticated"
+                ? "bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                : "bg-blue-300 cursor-not-allowed"
+            }`}
           >
             {showCreateForm ? "취소" : "새 프록시 서버 생성"}
           </button>
@@ -273,6 +504,28 @@ export default function ProxyPage() {
                   placeholder="프록시 서버에 대한 설명을 입력하세요"
                   rows={3}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  공개 설정
+                </label>
+                <select
+                  value={createForm.visibility}
+                  onChange={(e) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
+                      visibility: e.target.value as "PUBLIC" | "PRIVATE",
+                    }))
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="PRIVATE">비공개 (초대된 사용자만)</option>
+                  <option value="PUBLIC">공개 (로그인 사용자 누구나)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  비공개로 설정하면 초대된 사용자만 접근할 수 있습니다.
+                </p>
               </div>
 
               <div className="flex justify-end space-x-3">
@@ -396,6 +649,15 @@ export default function ProxyPage() {
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           프록시
                         </span>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ml-2 ${
+                            proxy.visibility === "PUBLIC"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {visibilityLabel[proxy.visibility]}
+                        </span>
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
@@ -442,6 +704,29 @@ export default function ProxyPage() {
                         >
                           📋 MOCK API 목록
                         </Link>
+
+                        {/* 프록시 설정 버튼 */}
+                        {status === "authenticated" ? (
+                          <Link
+                            href={`/proxy/${proxy.name}/settings`}
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          >
+                            ⚙️ 관리
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              signIn("google", {
+                                callbackUrl: window.location.pathname,
+                              })
+                            }
+                            className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-400 cursor-not-allowed"
+                            title="로그인 후 관리할 수 있습니다."
+                          >
+                            ⚙️ 관리
+                          </button>
+                        )}
 
                         {/* 프록시 서버 삭제 버튼 */}
                         <button

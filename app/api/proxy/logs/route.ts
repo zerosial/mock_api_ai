@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessById, getProxyAccessByName, requireAuthUser } from "@/lib/proxyAccess";
 
 // 프록시 통신 로그 조회
 export async function GET(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { searchParams } = new URL(req.url);
     const proxyServerId = searchParams.get("proxyServerId");
     const proxyServerName = searchParams.get("proxyServerName");
@@ -18,23 +21,24 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const whereClause: Record<string, number | string> = {};
+    const access = proxyServerId
+      ? await getProxyAccessById(parseInt(proxyServerId), user?.id)
+      : await getProxyAccessByName(proxyServerName as string, user?.id);
 
-    // 프록시 서버 ID 또는 이름으로 조회
-    if (proxyServerId) {
-      whereClause.proxyServerId = parseInt(proxyServerId);
-    } else if (proxyServerName) {
-      const proxyServer = await prisma.proxyServer.findUnique({
-        where: { name: proxyServerName, isActive: true },
-      });
-      if (!proxyServer) {
-        return NextResponse.json(
-          { error: "프록시 서버를 찾을 수 없습니다." },
-          { status: 404 }
-        );
-      }
-      whereClause.proxyServerId = proxyServer.id;
+    if (access.errorResponse) return access.errorResponse;
+
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
+      return NextResponse.json(
+        { error: "로그 조회 권한이 없습니다." },
+        { status: 403 }
+      );
     }
+
+    const whereClause: Record<string, number | string> = {
+      proxyServerId: access.data!.proxyServer.id,
+    };
 
     // 특정 API 경로와 메서드로 필터링
     if (path && method) {
@@ -69,6 +73,9 @@ export async function GET(req: NextRequest) {
 // 프록시 통신 로그 저장
 export async function POST(req: NextRequest) {
   try {
+    const authResult = await requireAuthUser();
+    if (authResult.errorResponse) return authResult.errorResponse;
+
     const {
       proxyServerId,
       path,
@@ -86,6 +93,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "필수 필드가 누락되었습니다." },
         { status: 400 }
+      );
+    }
+
+    const access = await getProxyAccessById(
+      parseInt(proxyServerId),
+      authResult.user.id
+    );
+    if (access.errorResponse) return access.errorResponse;
+
+    const canManage = access.data!.isOwner || access.data!.isMember;
+    if (!canManage) {
+      return NextResponse.json(
+        { error: "로그 저장 권한이 없습니다." },
+        { status: 403 }
       );
     }
 

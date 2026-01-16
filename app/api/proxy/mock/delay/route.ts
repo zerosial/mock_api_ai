@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessById } from "@/lib/proxyAccess";
 
 // Mock API 지연 시간 설정
 export async function PATCH(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { mockApiId, delayMs } = await req.json();
 
     if (mockApiId === undefined || delayMs === undefined) {
@@ -19,6 +22,32 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json(
         { error: "지연 시간은 0-300000ms 사이의 값이어야 합니다." },
         { status: 400 }
+      );
+    }
+
+    const mockApi = await prisma.proxyMockApi.findUnique({
+      where: { id: parseInt(mockApiId) },
+    });
+
+    if (!mockApi) {
+      return NextResponse.json(
+        { error: "Mock API를 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    const access = await getProxyAccessById(
+      mockApi.proxyServerId,
+      user?.id
+    );
+    if (access.errorResponse) return access.errorResponse;
+
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
+      return NextResponse.json(
+        { error: "Mock API 수정 권한이 없습니다." },
+        { status: 403 }
       );
     }
 

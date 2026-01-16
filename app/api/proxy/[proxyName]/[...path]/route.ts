@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/app/api/auth/[...nextauth]/route";
+import { getProxyAccessByName } from "@/lib/proxyAccess";
 
 export async function GET(
   req: NextRequest,
@@ -49,13 +51,15 @@ async function handleProxyRequest(
 
     console.log(`🔍 프록시 요청: ${method} /api/proxy/${proxyName}${fullPath}`);
 
-    // 프록시 서버 정보 조회
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyName, isActive: true },
-    });
+    const session = await auth();
+    const userId = session?.user?.id;
+    const access = await getProxyAccessByName(proxyName, userId);
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
-      console.log(`❌ 프록시 서버를 찾을 수 없음: ${proxyName}`);
+    const proxyServer = access.data!.proxyServer;
+
+    if (!proxyServer.isActive) {
+      console.log(`❌ 비활성화된 프록시 서버: ${proxyName}`);
       return NextResponse.json(
         { error: "프록시 서버를 찾을 수 없습니다." },
         { status: 404 }

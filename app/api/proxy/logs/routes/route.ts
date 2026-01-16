@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessByName } from "@/lib/proxyAccess";
 
 // 프록시 서버별 라우트 그룹 조회
 export async function GET(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { searchParams } = new URL(req.url);
     const proxyServerName = searchParams.get("proxyServerName");
 
@@ -14,21 +17,21 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 프록시 서버 조회
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyServerName, isActive: true },
-    });
+    const access = await getProxyAccessByName(proxyServerName, user?.id);
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
       return NextResponse.json(
-        { error: "프록시 서버를 찾을 수 없습니다." },
-        { status: 404 }
+        { error: "라우트 조회 권한이 없습니다." },
+        { status: 403 }
       );
     }
 
     // 먼저 모든 로그를 가져와서 JavaScript로 그룹화
     const allLogs = await prisma.proxyCommunicationLog.findMany({
-      where: { proxyServerId: proxyServer.id },
+      where: { proxyServerId: access.data!.proxyServer.id },
       orderBy: { createdAt: "desc" },
       select: {
         path: true,

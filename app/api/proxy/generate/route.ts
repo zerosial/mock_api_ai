@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessByName } from "@/lib/proxyAccess";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -13,6 +14,8 @@ interface Field {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const {
       proxyServerName,
       apiName,
@@ -24,14 +27,18 @@ export async function POST(req: NextRequest) {
     } = await req.json();
 
     // 프록시 서버 존재 확인
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyServerName },
-    });
+    const access = await getProxyAccessByName(
+      proxyServerName,
+      user?.id
+    );
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
       return NextResponse.json(
-        { error: "프록시 서버를 찾을 수 없습니다." },
-        { status: 404 }
+        { error: "Mock API 생성 권한이 없습니다." },
+        { status: 403 }
       );
     }
 
@@ -153,7 +160,7 @@ API 이름: ${apiName}
     // 데이터베이스에 프록시 Mock API 저장
     const proxyMockApi = await prisma.proxyMockApi.create({
       data: {
-        proxyServerId: proxyServer.id,
+        proxyServerId: access.data!.proxyServer.id,
         path,
         method,
         apiName,
