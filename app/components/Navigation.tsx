@@ -78,7 +78,11 @@ export default function Navigation() {
                   {session.user?.name || session.user?.email}
                 </span>
                 <button
-                  onClick={() => signOut()}
+                  onClick={() =>
+                    signOut({
+                      callbackUrl: basePath ? `${basePath}/` : "/",
+                    })
+                  }
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                 >
                   로그아웃
@@ -110,7 +114,11 @@ export default function Navigation() {
                   />
                 )}
                 <button
-                  onClick={() => signOut()}
+                  onClick={() =>
+                    signOut({
+                      callbackUrl: basePath ? `${basePath}/` : "/",
+                    })
+                  }
                   className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
                 >
                   로그아웃

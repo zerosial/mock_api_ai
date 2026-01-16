@@ -55,6 +55,7 @@ export default function ProxyPage() {
   });
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const visibilityLabel = {
     PUBLIC: "공개",
@@ -128,7 +129,9 @@ export default function ProxyPage() {
         throw new Error(errorData.error || "초대 수락에 실패했습니다.");
       }
 
-      setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+      setPendingInvites((prev) =>
+        prev.filter((invite) => invite.id !== inviteId)
+      );
       await fetchProxyServers();
     } catch (error) {
       console.error("초대 수락 오류:", error);
@@ -158,7 +161,9 @@ export default function ProxyPage() {
         throw new Error(errorData.error || "초대 거절에 실패했습니다.");
       }
 
-      setPendingInvites((prev) => prev.filter((invite) => invite.id !== inviteId));
+      setPendingInvites((prev) =>
+        prev.filter((invite) => invite.id !== inviteId)
+      );
     } catch (error) {
       console.error("초대 거절 오류:", error);
       alert(
@@ -336,8 +341,8 @@ export default function ProxyPage() {
           <div className="mb-6 bg-white border border-blue-100 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700">
-                공개 프록시는 로그인 없이 조회/수정할 수 있습니다. 프록시
-                생성이나 초대 관리가 필요하면 로그인하세요.
+                공개 프록시는 로그인 없이 조회할 수 있습니다. 프록시 생성 수정
+                삭제 및 초대 관리가 필요하면 로그인하세요.
               </p>
             </div>
             <button
@@ -356,68 +361,66 @@ export default function ProxyPage() {
         {/* 초대된 프록시 */}
         {status === "authenticated" &&
           (loadingInvites || pendingInvites.length > 0) && (
-          <div className="mb-8 bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">
-                받은 초대
-              </h3>
-              {loadingInvites && (
-                <span className="text-xs text-gray-500">불러오는 중...</span>
+            <div className="mb-8 bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">받은 초대</h3>
+                {loadingInvites && (
+                  <span className="text-xs text-gray-500">불러오는 중...</span>
+                )}
+              </div>
+              {pendingInvites.length === 0 ? (
+                <p className="text-sm text-gray-500">받은 초대가 없습니다.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {pendingInvites.map((invite) => (
+                    <li
+                      key={invite.id}
+                      className="border border-gray-200 rounded-md p-4"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {invite.proxyServer.name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {invite.proxyServer.targetUrl}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            초대한 사람:{" "}
+                            {invite.invitedBy.name || invite.invitedBy.email}
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => acceptInvite(invite.id)}
+                            disabled={inviteActionId === invite.id}
+                            className={`px-3 py-1 text-xs font-medium rounded ${
+                              inviteActionId === invite.id
+                                ? "bg-green-300 text-white cursor-not-allowed"
+                                : "bg-green-600 text-white hover:bg-green-700"
+                            }`}
+                          >
+                            수락
+                          </button>
+                          <button
+                            onClick={() => declineInvite(invite.id)}
+                            disabled={inviteActionId === invite.id}
+                            className={`px-3 py-1 text-xs font-medium rounded ${
+                              inviteActionId === invite.id
+                                ? "bg-gray-300 text-white cursor-not-allowed"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            }`}
+                          >
+                            거절
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-            {pendingInvites.length === 0 ? (
-              <p className="text-sm text-gray-500">받은 초대가 없습니다.</p>
-            ) : (
-              <ul className="space-y-3">
-                {pendingInvites.map((invite) => (
-                  <li
-                    key={invite.id}
-                    className="border border-gray-200 rounded-md p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {invite.proxyServer.name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {invite.proxyServer.targetUrl}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          초대한 사람:{" "}
-                          {invite.invitedBy.name || invite.invitedBy.email}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => acceptInvite(invite.id)}
-                          disabled={inviteActionId === invite.id}
-                          className={`px-3 py-1 text-xs font-medium rounded ${
-                            inviteActionId === invite.id
-                              ? "bg-green-300 text-white cursor-not-allowed"
-                              : "bg-green-600 text-white hover:bg-green-700"
-                          }`}
-                        >
-                          수락
-                        </button>
-                        <button
-                          onClick={() => declineInvite(invite.id)}
-                          disabled={inviteActionId === invite.id}
-                          className={`px-3 py-1 text-xs font-medium rounded ${
-                            inviteActionId === invite.id
-                              ? "bg-gray-300 text-white cursor-not-allowed"
-                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                          }`}
-                        >
-                          거절
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+          )}
 
         {/* 액션 버튼 */}
         <div className="mb-8">
@@ -716,11 +719,7 @@ export default function ProxyPage() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() =>
-                              signIn("google", {
-                                callbackUrl: window.location.pathname,
-                              })
-                            }
+                            onClick={() => setShowLoginModal(true)}
                             className="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-400 cursor-not-allowed"
                             title="로그인 후 관리할 수 있습니다."
                           >
@@ -752,6 +751,37 @@ export default function ProxyPage() {
           )}
         </div>
       </div>
+
+      {showLoginModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              로그인 필요
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              관리 기능은 로그인 후 사용할 수 있습니다.
+            </p>
+            <div className="flex justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setShowLoginModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                닫기
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  signIn("google", { callbackUrl: window.location.pathname })
+                }
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                로그인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
