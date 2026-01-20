@@ -147,7 +147,8 @@ export const config = {
   matcher: [
     "/api/:path*",
     "/auth/:path*",
-    // basePath가 있을 때 basePath 포함 경로도 처리
-    ...(basePath ? [`${basePath}/api/:path*`, `${basePath}/auth/:path*`, `${basePath}/(.*)`] : []),
+    "/mockapi/api/:path*",
+    "/mockapi/auth/:path*",
+    "/mockapi/:path*",
   ],
 };

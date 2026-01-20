@@ -50,16 +50,18 @@ function rewriteRequest(request: NextRequest): NextRequest {
   return new NextRequest(url, request);
 }
 
-export async function GET(request: NextRequest, props: any) {
+export async function GET(request: NextRequest) {
   try {
     console.log("[NextAuth GET] Original pathname:", request.nextUrl.pathname);
     const rewrittenRequest = rewriteRequest(request);
     console.log("[NextAuth GET] Rewritten pathname:", rewrittenRequest.nextUrl.pathname);
-    return await handlers.GET(rewrittenRequest, props);
-  } catch (error: any) {
+    return await handlers.GET(rewrittenRequest);
+  } catch (error: unknown) {
     console.error("[NextAuth GET Error]", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error?.message }),
+      JSON.stringify({ error: "Internal server error", details: errorMessage }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -68,16 +70,18 @@ export async function GET(request: NextRequest, props: any) {
   }
 }
 
-export async function POST(request: NextRequest, props: any) {
+export async function POST(request: NextRequest) {
   try {
     console.log("[NextAuth POST] Original pathname:", request.nextUrl.pathname);
     const rewrittenRequest = rewriteRequest(request);
     console.log("[NextAuth POST] Rewritten pathname:", rewrittenRequest.nextUrl.pathname);
-    return await handlers.POST(rewrittenRequest, props);
-  } catch (error: any) {
+    return await handlers.POST(rewrittenRequest);
+  } catch (error: unknown) {
     console.error("[NextAuth POST Error]", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: "Internal server error", details: error?.message }),
+      JSON.stringify({ error: "Internal server error", details: errorMessage }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },

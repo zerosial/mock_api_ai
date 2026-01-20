@@ -1,4 +1,4 @@
-import { NextAuthOptions } from "next-auth";
+import type { NextAuthConfig } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "./prisma";
@@ -6,7 +6,7 @@ import { prisma } from "./prisma";
 // basePath 설정 (환경 변수에서 가져옴)
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
-export const authOptions: NextAuthOptions = {
+export const authOptions: NextAuthConfig = {
   adapter: PrismaAdapter(prisma) as any,
   trustHost: true, // basePath 사용 시 필요
   secret: process.env.NEXTAUTH_SECRET,
