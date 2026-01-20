@@ -1,29 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessByName } from "@/lib/proxyAccess";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { proxyName } = await params;
 
     // 프록시 서버 존재 확인
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyName, isActive: true },
-    });
+    const access = await getProxyAccessByName(proxyName, user?.id);
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
       return NextResponse.json(
-        { error: "프록시 서버를 찾을 수 없습니다." },
-        { status: 404 }
+        { error: "Mock API 조회 권한이 없습니다." },
+        { status: 403 }
       );
     }
 
     // Mock API 목록 조회
     const mockApis = await prisma.proxyMockApi.findMany({
       where: {
-        proxyServerId: proxyServer.id,
+        proxyServerId: access.data!.proxyServer.id,
         // isActive 상태와 관계없이 모든 Mock API 조회
       },
       orderBy: { createdAt: "desc" },

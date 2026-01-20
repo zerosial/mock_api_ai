@@ -49,7 +49,6 @@ async function handleProxyRequest(
 
     console.log(`🔍 프록시 요청: ${method} /api/proxy/${proxyName}${fullPath}`);
 
-    // 프록시 서버 정보 조회
     const proxyServer = await prisma.proxyServer.findUnique({
       where: { name: proxyName, isActive: true },
     });

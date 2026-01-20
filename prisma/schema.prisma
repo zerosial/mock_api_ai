@@ -14,6 +14,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum ProxyVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ProxyMemberRole {
+  OWNER
+  EDITOR
+}
+
+enum ProxyInviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
 // API 템플릿 모델 - AI가 생성한 API 스펙과 코드를 저장
 model Template {
   id            Int      @id @default(autoincrement())
@@ -64,16 +80,53 @@ model ProxyServer {
   targetUrl   String   // 목표 서버 URL (예: https://mobilemanager.com)
   description String?  // 설명
   isActive    Boolean  @default(true) // 활성화 여부
+  visibility  ProxyVisibility @default(PRIVATE) // 공개 여부
+  ownerId     String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // 소유자와의 관계
+  owner User @relation("ProxyServerOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   // Mock API와의 관계
   mockApis ProxyMockApi[]
   // 통신 로그와의 관계
   communicationLogs ProxyCommunicationLog[]
+  // 멤버/초대 관계
+  members ProxyServerMember[]
+  invites ProxyServerInvite[]
 
   @@unique([name])
   @@map("proxy_servers")
+}
+
+model ProxyServerMember {
+  id            Int      @id @default(autoincrement())
+  proxyServerId Int
+  userId        String
+  role          ProxyMemberRole @default(EDITOR)
+  createdAt     DateTime @default(now())
+
+  proxyServer ProxyServer @relation(fields: [proxyServerId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([proxyServerId, userId])
+  @@map("proxy_server_members")
+}
+
+model ProxyServerInvite {
+  id            Int      @id @default(autoincrement())
+  proxyServerId Int
+  email         String
+  invitedById   String
+  status        ProxyInviteStatus @default(PENDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  proxyServer ProxyServer @relation(fields: [proxyServerId], references: [id], onDelete: Cascade)
+  invitedBy   User       @relation("ProxyServerInviteInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([proxyServerId, email, status])
+  @@map("proxy_server_invites")
 }
 
 // 프록시 Mock API 모델
@@ -120,4 +173,68 @@ model ProxyCommunicationLog {
   // 인덱스 추가로 성능 최적화
   @@index([proxyServerId, path, method, createdAt])
   @@map("proxy_communication_logs")
+}
+
+// 사용자 모델 - 인증 및 회원 정보
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String?
+  image         String?  // 프로필 이미지 URL
+  emailVerified DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // OAuth 계정 정보
+  accounts Account[]
+  // 세션 정보
+  sessions Session[]
+  // 프록시 소유/멤버/초대 관계
+  ownedProxyServers ProxyServer[] @relation("ProxyServerOwner")
+  proxyServerMembers ProxyServerMember[]
+  sentProxyInvites ProxyServerInvite[] @relation("ProxyServerInviteInviter")
+
+  @@map("users")
+}
+
+// OAuth 계정 모델
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String  // "oauth" | "email" | "credentials"
+  provider          String  // "google" | "github" 등
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// 세션 모델
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// 인증 토큰 모델 (이메일 인증 등에 사용)
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }

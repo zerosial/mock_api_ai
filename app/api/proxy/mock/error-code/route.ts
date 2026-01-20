@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessById } from "@/lib/proxyAccess";
 
 // Mock API 에러코드 설정
 export async function PATCH(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { mockApiId, errorCode } = await req.json();
 
     console.log("에러코드 API 요청:", {
@@ -40,6 +43,32 @@ export async function PATCH(req: NextRequest) {
     // errorCode가 빈 문자열이면 errorCodeValue는 null (정상 응답)
 
     console.log("처리된 에러코드:", errorCodeValue);
+
+    const mockApi = await prisma.proxyMockApi.findUnique({
+      where: { id: parseInt(mockApiId) },
+    });
+
+    if (!mockApi) {
+      return NextResponse.json(
+        { error: "Mock API를 찾을 수 없습니다." },
+        { status: 404 }
+      );
+    }
+
+    const access = await getProxyAccessById(
+      mockApi.proxyServerId,
+      user?.id
+    );
+    if (access.errorResponse) return access.errorResponse;
+
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
+      return NextResponse.json(
+        { error: "Mock API 수정 권한이 없습니다." },
+        { status: 403 }
+      );
+    }
 
     // Mock API 에러코드 업데이트
     const updatedMockApi = await prisma.proxyMockApi.update({

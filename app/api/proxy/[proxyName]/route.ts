@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessByName, requireAuthUser } from "@/lib/proxyAccess";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
+    const user = await getOptionalAuthUser();
+
     const { proxyName } = await params;
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyName },
-    });
+    const access = await getProxyAccessByName(proxyName, user?.id);
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
-      return NextResponse.json(
-        { error: "프록시 서버를 찾을 수 없습니다." },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(proxyServer);
+    return NextResponse.json(access.data?.proxyServer);
   } catch (error) {
     console.error("프록시 서버 조회 오류:", error);
     return NextResponse.json(
@@ -33,6 +28,9 @@ export async function DELETE(
   { params }: { params: Promise<{ proxyName: string }> }
 ) {
   try {
+    const authResult = await requireAuthUser();
+    if (authResult.errorResponse) return authResult.errorResponse;
+
     const { proxyName } = await params;
 
     // 프록시 서버 조회
@@ -55,6 +53,13 @@ export async function DELETE(
       );
     }
 
+    if (proxyServer.ownerId !== authResult.user.id) {
+      return NextResponse.json(
+        { error: "삭제 권한이 없습니다." },
+        { status: 403 }
+      );
+    }
+
     // 트랜잭션으로 모든 관련 데이터 삭제
     await prisma.$transaction(async (tx) => {
       // 1. Mock API 삭제
@@ -67,7 +72,15 @@ export async function DELETE(
         where: { proxyServerId: proxyServer.id },
       });
 
-      // 3. 프록시 서버 삭제
+      // 3. 멤버/초대 삭제
+      await tx.proxyServerMember.deleteMany({
+        where: { proxyServerId: proxyServer.id },
+      });
+      await tx.proxyServerInvite.deleteMany({
+        where: { proxyServerId: proxyServer.id },
+      });
+
+      // 4. 프록시 서버 삭제
       await tx.proxyServer.delete({
         where: { id: proxyServer.id },
       });

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, getProxyAccessByName } from "@/lib/proxyAccess";
 
 // 통신 로그 기반 Mock API 생성
 export async function POST(req: NextRequest) {
   try {
+    const user = await getOptionalAuthUser();
+
     const {
       proxyServerName,
       path,
@@ -21,14 +24,18 @@ export async function POST(req: NextRequest) {
     }
 
     // 프록시 서버 조회
-    const proxyServer = await prisma.proxyServer.findUnique({
-      where: { name: proxyServerName, isActive: true },
-    });
+    const access = await getProxyAccessByName(
+      proxyServerName,
+      user?.id
+    );
+    if (access.errorResponse) return access.errorResponse;
 
-    if (!proxyServer) {
+    const canManage =
+      access.data!.isOwner || access.data!.isMember || access.data!.isPublic;
+    if (!canManage) {
       return NextResponse.json(
-        { error: "프록시 서버를 찾을 수 없습니다." },
-        { status: 404 }
+        { error: "Mock API 생성 권한이 없습니다." },
+        { status: 403 }
       );
     }
 
@@ -52,7 +59,7 @@ export async function POST(req: NextRequest) {
     // 기존 Mock API가 있는지 확인 (활성화 상태와 관계없이)
     const existingMockApis = await prisma.proxyMockApi.findMany({
       where: {
-        proxyServerId: proxyServer.id,
+        proxyServerId: access.data!.proxyServer.id,
         path,
         method: method.toUpperCase(),
         // isActive 상태와 관계없이 조회
@@ -61,7 +68,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log("Mock API 생성 요청:", {
-      proxyServerId: proxyServer.id,
+      proxyServerId: access.data!.proxyServer.id,
       path,
       method: method.toUpperCase(),
       existingMockApis: existingMockApis.map((api) => ({
@@ -101,7 +108,7 @@ export async function POST(req: NextRequest) {
     // 새로운 Mock API 생성
     const mockApi = await prisma.proxyMockApi.create({
       data: {
-        proxyServerId: proxyServer.id,
+        proxyServerId: access.data!.proxyServer.id,
         path,
         method: method.toUpperCase(),
         apiName: newApiName,
@@ -124,7 +131,7 @@ export async function POST(req: NextRequest) {
     if (existingMockApis.length > 0) {
       await prisma.proxyMockApi.updateMany({
         where: {
-          proxyServerId: proxyServer.id,
+          proxyServerId: access.data!.proxyServer.id,
           path,
           method: method.toUpperCase(),
           id: { not: mockApi.id }, // 새로 생성된 Mock API 제외

@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getOptionalAuthUser, requireAuthUser } from "@/lib/proxyAccess";
+import { ProxyMemberRole, ProxyVisibility } from "@/lib/generated/prisma";
 
 // 프록시 서버 목록 조회
 export async function GET() {
   try {
+    const user = await getOptionalAuthUser();
+
     const proxyServers = await prisma.proxyServer.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        OR: user
+          ? [
+              { ownerId: user.id },
+              { members: { some: { userId: user.id } } },
+              { visibility: ProxyVisibility.PUBLIC },
+            ]
+          : [{ visibility: ProxyVisibility.PUBLIC }],
+      },
       include: {
         _count: {
           select: { mockApis: true }
@@ -27,7 +40,10 @@ export async function GET() {
 // 프록시 서버 생성
 export async function POST(req: NextRequest) {
   try {
-    const { name, targetUrl, description } = await req.json();
+    const authResult = await requireAuthUser();
+    if (authResult.errorResponse) return authResult.errorResponse;
+
+    const { name, targetUrl, description, visibility } = await req.json();
 
     if (!name || !targetUrl) {
       return NextResponse.json(
@@ -46,12 +62,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const resolvedVisibility =
+      visibility === ProxyVisibility.PUBLIC
+        ? ProxyVisibility.PUBLIC
+        : ProxyVisibility.PRIVATE;
+
     const proxyServer = await prisma.proxyServer.create({
       data: {
         name,
         targetUrl,
-        description
-      }
+        description,
+        visibility: resolvedVisibility,
+        ownerId: authResult.user.id,
+        members: {
+          create: {
+            userId: authResult.user.id,
+            role: ProxyMemberRole.OWNER,
+          },
+        },
+      },
     });
 
     return NextResponse.json(proxyServer, { status: 201 });
