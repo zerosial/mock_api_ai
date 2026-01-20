@@ -3,12 +3,12 @@ import NextAuth from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-const { handlers, auth } = NextAuth(authOptions);
+const { handlers } = NextAuth(authOptions);
 
 // 요청 rewrite 함수 - 호스트와 basePath를 올바르게 포함
 // 참고: next-auth/packages/core/src/lib/utils/env.ts:createActionURL
 function rewriteRequest(request: NextRequest): NextRequest {
-  let { protocol, host, pathname } = request.nextUrl;
+  const { protocol, host, pathname } = request.nextUrl;
   const headers = request.headers;
 
   // Host rewrite - X-Forwarded-Host 또는 기본 host 사용
@@ -49,8 +49,6 @@ function rewriteRequest(request: NextRequest): NextRequest {
   // NextRequest 생성 - 원본 요청의 메서드, 헤더, body 유지
   return new NextRequest(url, request);
 }
-
-export { auth };
 
 export async function GET(request: NextRequest, props: any) {
   try {
